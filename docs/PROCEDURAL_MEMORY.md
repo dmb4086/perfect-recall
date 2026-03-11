@@ -668,25 +668,29 @@ class SkillImprovement:
 
 ## 7. Evaluation: Does It Actually Work?
 
-### 7.1 Evaluation Metrics
+### 7.1 Evaluation Metrics (Aspirational Targets)
 
 | Metric | Description | Target |
 |--------|-------------|--------|
-| **Skill Coverage** | % of tasks covered by learned skills | > 60% |
-| **Success Rate** | % of skill applications that succeed | > 85% |
-| **Adaptation Speed** | How many attempts to learn a new variant | < 3 |
-| **Transfer Score** | Success on novel but similar tasks | > 70% |
-| **Skill Stability** | Success rate doesn't degrade over time | ±5% |
+| **Skill Coverage** | % of tasks covered by learned skills | > 50% |
+| **Success Rate** | % of skill applications that succeed | > 75% |
+| **Adaptation Speed** | Attempts to learn a new variant | < 5 |
+| **Transfer Score** | Success on novel but similar tasks | > 60% |
+| **Skill Stability** | Success rate variance over time | ±10% |
 
-### 7.2 Comparison: Template vs. Learned
+*Note: Targets are aspirational goals to be validated through implementation and testing.*
 
-| Scenario | Template | Learned |
-|----------|----------|---------|
-| Standard Python debug | 85% | 90% |
-| Python debug (new error type) | 20% | 75% |
-| API debugging | 60% | 88% |
-| Database troubleshooting | 40% | 82% |
-| Novel framework | 10% | 65% |
+### 7.2 Comparison: Template vs. Learned (Hypothetical)
+
+The following table shows *expected* performance differences based on the design properties of each approach. These are hypotheses to be validated through benchmarks, not measured values:
+
+| Scenario | Template Approach | Learned Approach | Expected Difference |
+|----------|------------------|------------------|---------------------|
+| Standard tasks (seen in training) | Moderate-high success | High success | Learned may improve through practice |
+| Novel variants (unseen in training) | Low success | Moderate-high success | Learned generalizes better |
+| Novel domains | Very low success | Moderate success | Learned transfers patterns |
+
+**Rationale:** Learned skills should outperform templates on novel situations because they capture underlying patterns rather than surface-level steps. Template performance should be more consistent on standard tasks but brittle when conditions change.
 
 ### 7.3 Benchmarks
 
