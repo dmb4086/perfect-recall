@@ -116,6 +116,12 @@ CREATE TABLE memory_nodes (
     supersedes_id UUID REFERENCES memory_nodes(id),
     superseded_by_id UUID REFERENCES memory_nodes(id),
     
+    -- Superpowers-inspired metadata fields for context-aware retrieval
+    triggers TEXT[] DEFAULT '{}',         -- When to recall this memory (e.g., 'auth error', 'user asks about X')
+    symptoms TEXT[] DEFAULT '{}',         -- Error phrases, failure patterns to match against
+    aliases TEXT[] DEFAULT '{}',          -- Synonyms and related terms for flexible matching
+    anti_triggers TEXT[] DEFAULT '{}',    -- When NOT to use this memory (negative context indicators)
+    
     -- Flexible metadata
     metadata JSONB NOT NULL DEFAULT '{}',
     
@@ -132,6 +138,12 @@ CREATE INDEX idx_memory_last_accessed ON memory_nodes(last_accessed DESC);
 CREATE INDEX idx_memory_metadata ON memory_nodes USING GIN (metadata);
 CREATE INDEX idx_memory_search ON memory_nodes USING GIN (search_vector);
 CREATE INDEX idx_memory_source_episode ON memory_nodes(source_episode_id);
+
+-- Superpowers metadata indexes for context-aware retrieval
+CREATE INDEX idx_memory_triggers ON memory_nodes USING GIN (triggers);
+CREATE INDEX idx_memory_symptoms ON memory_nodes USING GIN (symptoms);
+CREATE INDEX idx_memory_aliases ON memory_nodes USING GIN (aliases);
+CREATE INDEX idx_memory_anti_triggers ON memory_nodes USING GIN (anti_triggers);
 
 -- Vector similarity index (IVFFlat for balance of speed/accuracy)
 CREATE INDEX idx_memory_embedding ON memory_nodes 

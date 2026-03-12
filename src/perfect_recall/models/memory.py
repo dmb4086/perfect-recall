@@ -72,6 +72,12 @@ class MemoryNode(BaseModel):
     supersedes_id: Optional[UUID] = None
     superseded_by_id: Optional[UUID] = None
     
+    # Superpowers-inspired metadata for context-aware retrieval
+    triggers: List[str] = Field(default_factory=list, description="When to recall this memory (activation conditions)")
+    symptoms: List[str] = Field(default_factory=list, description="Error phrases and failure patterns to match")
+    aliases: List[str] = Field(default_factory=list, description="Synonyms and related terms for flexible matching")
+    anti_triggers: List[str] = Field(default_factory=list, description="When NOT to use this memory (negative indicators)")
+    
     # Flexible metadata for tier-specific data
     metadata: Dict[str, Any] = Field(default_factory=dict)
     

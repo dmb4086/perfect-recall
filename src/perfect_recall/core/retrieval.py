@@ -20,10 +20,11 @@ class SalienceScorer:
     Calculates salience (relevance/importance) scores for memories.
     
     Combines multiple factors:
-    - Semantic similarity (35%)
-    - Recency (20%)
-    - Importance (20%)
-    - Frequency (15%)
+    - Semantic similarity (30%)
+    - Superpowers metadata match (20%) - triggers, symptoms, aliases
+    - Recency (15%)
+    - Importance (15%)
+    - Frequency (10%)
     - Contextual match (10%)
     """
     
@@ -36,19 +37,21 @@ class SalienceScorer:
         
         Args:
             weights: Custom weights for scoring components.
-                    Defaults to balanced weighting.
+                    Defaults to balanced weighting with Superpowers support.
         """
         self.weights = weights or {
-            'semantic': 0.35,
-            'recency': 0.20,
-            'importance': 0.20,
-            'frequency': 0.15,
+            'semantic': 0.30,
+            'superpowers': 0.20,  # New: triggers, symptoms, aliases matching
+            'recency': 0.15,
+            'importance': 0.15,
+            'frequency': 0.10,
             'contextual': 0.10,
         }
     
     def score(
         self,
         memory: MemoryNode,
+        query: str = "",
         query_embedding: Optional[List[float]] = None,
         semantic_similarity: float = 0.0,
         context: Optional[RetrievalContext] = None,
@@ -58,6 +61,7 @@ class SalienceScorer:
         
         Args:
             memory: Memory to score
+            query: Original query text (for Superpowers matching)
             query_embedding: Query embedding for semantic similarity
             semantic_similarity: Pre-computed semantic similarity
             context: Current retrieval context
@@ -69,6 +73,9 @@ class SalienceScorer:
         
         # Semantic similarity
         components['semantic'] = semantic_similarity
+        
+        # Superpowers metadata match (triggers, symptoms, aliases)
+        components['superpowers'] = self._superpowers_score(memory, query)
         
         # Recency score
         components['recency'] = self._recency_score(memory)
@@ -89,6 +96,62 @@ class SalienceScorer:
         )
         
         return total, components
+    
+    def _superpowers_score(self, memory: MemoryNode, query: str) -> float:
+        """
+        Calculate Superpowers metadata match score.
+        
+        Scores based on overlap between query and:
+        - triggers (when to recall)
+        - symptoms (error patterns)
+        - aliases (synonyms)
+        """
+        if not query:
+            return 0.5
+        
+        query_lower = query.lower()
+        query_terms = set(query_lower.split())
+        
+        scores = []
+        
+        # Check triggers (highest weight - direct activation)
+        if memory.triggers:
+            trigger_hits = sum(
+                1 for t in memory.triggers 
+                if any(term in t.lower() for term in query_terms)
+            )
+            scores.append(min(trigger_hits / max(len(memory.triggers) * 0.3, 1.0), 1.0) * 1.0)
+        
+        # Check symptoms (high weight for error contexts)
+        if memory.symptoms:
+            symptom_hits = sum(
+                1 for s in memory.symptoms 
+                if s.lower() in query_lower or any(term in s.lower() for term in query_terms)
+            )
+            scores.append(min(symptom_hits / max(len(memory.symptoms) * 0.3, 1.0), 1.0) * 0.9)
+        
+        # Check aliases (medium weight - synonym matching)
+        if memory.aliases:
+            alias_hits = sum(
+                1 for a in memory.aliases 
+                if a.lower() in query_lower
+            )
+            scores.append(min(alias_hits / max(len(memory.aliases) * 0.3, 1.0), 1.0) * 0.8)
+        
+        # Check anti-triggers (negative score if matched)
+        if memory.anti_triggers:
+            anti_hits = sum(
+                1 for at in memory.anti_triggers 
+                if at.lower() in query_lower or any(term in at.lower() for term in query_terms)
+            )
+            if anti_hits > 0:
+                # Reduce score if anti-triggers match
+                return max(0.0, (sum(scores) / len(scores) if scores else 0.5) - 0.3)
+        
+        if not scores:
+            return 0.5  # Neutral if no Superpowers metadata
+        
+        return sum(scores) / len(scores)
     
     def _recency_score(self, memory: MemoryNode) -> float:
         """
@@ -216,11 +279,15 @@ class RetrievalPipeline:
         # Stage 2-3: Temporal and metadata filtering
         filtered = self._apply_filters(candidates, context)
         
+        # Stage 3.5: Anti-trigger filtering (Superpowers enhancement)
+        filtered = self._apply_anti_trigger_filter(filtered, query)
+        
         # Stage 4-5: Salience scoring and ranking
         scored = []
         for memory, semantic_sim in filtered:
             salience, components = self.scorer.score(
                 memory=memory,
+                query=query,
                 query_embedding=query_embedding,
                 semantic_similarity=semantic_sim,
                 context=context,
@@ -386,6 +453,51 @@ class RetrievalPipeline:
                 continue
             
             filtered.append((memory, score))
+        
+        return filtered
+    
+    def _apply_anti_trigger_filter(
+        self,
+        candidates: List[tuple[MemoryNode, float]],
+        query: str,
+    ) -> List[tuple[MemoryNode, float]]:
+        """
+        Filter out memories whose anti-triggers match the query.
+        
+        Superpowers-inspired: anti_triggers tell us when NOT to use a memory.
+        """
+        if not query:
+            return candidates
+        
+        query_lower = query.lower()
+        query_terms = set(query_lower.split())
+        
+        filtered = []
+        for memory, score in candidates:
+            # Skip if memory has no anti_triggers
+            if not memory.anti_triggers:
+                filtered.append((memory, score))
+                continue
+            
+            # Check if query matches any anti-trigger
+            anti_trigger_match = False
+            for anti in memory.anti_triggers:
+                anti_lower = anti.lower()
+                # Direct match
+                if anti_lower in query_lower:
+                    anti_trigger_match = True
+                    break
+                # Term overlap match
+                anti_terms = set(anti_lower.split())
+                if anti_terms & query_terms:  # Intersection
+                    # Strong overlap (>50% of anti-trigger terms)
+                    if len(anti_terms & query_terms) / len(anti_terms) > 0.5:
+                        anti_trigger_match = True
+                        break
+            
+            # Only keep if no anti-trigger matches
+            if not anti_trigger_match:
+                filtered.append((memory, score))
         
         return filtered
     

@@ -92,6 +92,12 @@ class MemoryNodeORM(Base):
     supersedes_id = Column(PGUUID(as_uuid=True), ForeignKey("memory_nodes.id"))
     superseded_by_id = Column(PGUUID(as_uuid=True), ForeignKey("memory_nodes.id"))
     
+    # Superpowers-inspired metadata fields
+    triggers = Column(ARRAY(String), default=list)
+    symptoms = Column(ARRAY(String), default=list)
+    aliases = Column(ARRAY(String), default=list)
+    anti_triggers = Column(ARRAY(String), default=list)
+    
     metadata = Column(JSON, nullable=False, default=dict)
     search_vector = Column(TSVECTOR)
     

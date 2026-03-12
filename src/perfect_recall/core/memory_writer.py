@@ -77,6 +77,25 @@ class MemoryWriter:
             'note that',
             'for future reference',
         ]
+        
+        # Superpowers-inspired: Error/symptom patterns for memory classification
+        self._error_patterns = [
+            r'error[:\s]+([^\n.]+)',
+            r'exception[:\s]+([^\n.]+)',
+            r'failed?(?:\s+to)?[:\s]+([^\n.]+)',
+            r'(?:bug|issue|problem)[:\s]+(?:is|with)?\s*([^\n.]+)',
+            r'(?:traceback|stack trace)',
+            r'(?:timeout|timed out)',
+            r'(?:crash|crashed)',
+            r'(?:undefined|not found|not defined)',
+        ]
+        
+        # Anti-trigger patterns (when NOT to apply a memory)
+        self._anti_trigger_patterns = [
+            r'(?:not|don\'t|never)\s+(?:use|apply|for)',
+            r'(?:deprecated|obsolete|replaced by)',
+            r'(?:outdated|old version)',
+        ]
     
     # ========================================================================
     # Public API
@@ -89,6 +108,10 @@ class MemoryWriter:
         session_id: Optional[UUID] = None,
         metadata: Optional[Dict[str, Any]] = None,
         embedding: Optional[List[float]] = None,
+        triggers: Optional[List[str]] = None,
+        symptoms: Optional[List[str]] = None,
+        aliases: Optional[List[str]] = None,
+        anti_triggers: Optional[List[str]] = None,
     ) -> Optional[MemoryNode]:
         """
         Record a new episode to episodic memory.
@@ -102,6 +125,10 @@ class MemoryWriter:
             session_id: Associated session ID
             metadata: Additional metadata
             embedding: Pre-computed embedding (optional)
+            triggers: When to recall this memory (auto-extracted if not provided)
+            symptoms: Error phrases/failure patterns (auto-extracted if not provided)
+            aliases: Synonyms/related terms (auto-extracted if not provided)
+            anti_triggers: When NOT to use this memory
             
         Returns:
             MemoryNode if stored, None if rejected by write gate
@@ -111,6 +138,12 @@ class MemoryWriter:
         
         if not decision.write:
             return None
+        
+        # Auto-extract Superpowers metadata if not provided
+        extracted_triggers = triggers or self._extract_triggers(content, episode_type)
+        extracted_symptoms = symptoms or self._extract_symptoms(content)
+        extracted_aliases = aliases or self._extract_aliases(content)
+        extracted_anti_triggers = anti_triggers or self._extract_anti_triggers(content)
         
         # Generate embedding if not provided
         if embedding is None and self.embedding_func:
@@ -128,6 +161,10 @@ class MemoryWriter:
             embedding=embedding,
             importance_score=decision.importance,
             source_type=SourceType.DIRECT,
+            triggers=extracted_triggers,
+            symptoms=extracted_symptoms,
+            aliases=extracted_aliases,
+            anti_triggers=extracted_anti_triggers,
             metadata={
                 **(metadata or {}),
                 'episode_type': episode_type.value,
@@ -212,6 +249,9 @@ class MemoryWriter:
         trigger_patterns: List[str],
         applicable_contexts: List[str],
         embedding: Optional[List[float]] = None,
+        symptoms: Optional[List[str]] = None,
+        aliases: Optional[List[str]] = None,
+        anti_triggers: Optional[List[str]] = None,
     ) -> MemoryNode:
         """
         Store a procedural memory (skill/pattern).
@@ -222,6 +262,9 @@ class MemoryWriter:
             trigger_patterns: Keywords/phrases that trigger this pattern
             applicable_contexts: Contexts where pattern applies
             embedding: Pre-computed embedding
+            symptoms: Error phrases this pattern solves (auto-extracted if not provided)
+            aliases: Synonyms for this pattern name (auto-extracted if not provided)
+            anti_triggers: When NOT to use this pattern
             
         Returns:
             Created memory node
@@ -236,10 +279,30 @@ class MemoryWriter:
                 print(f"Embedding generation failed: {e}")
                 embedding = None
         
+        # Auto-extract symptoms if not provided
+        extracted_symptoms = symptoms or self._extract_symptoms(description)
+        
+        # Auto-extract aliases from pattern name if not provided
+        extracted_aliases = aliases or []
+        if not extracted_aliases:
+            # Add common variations of pattern name
+            name_parts = pattern_name.lower().replace('-', ' ').replace('_', ' ').split()
+            extracted_aliases.append(' '.join(name_parts))
+            if len(name_parts) > 1:
+                extracted_aliases.append(name_parts[0])  # First word
+                extracted_aliases.append(name_parts[-1])  # Last word
+        
+        # Auto-extract anti-triggers if not provided
+        extracted_anti_triggers = anti_triggers or self._extract_anti_triggers(description)
+        
         memory = MemoryNode(
             memory_tier=MemoryTier.PROCEDURAL,
             content=content,
             embedding=embedding,
+            triggers=trigger_patterns,  # trigger_patterns map directly to triggers
+            symptoms=extracted_symptoms,
+            aliases=extracted_aliases,
+            anti_triggers=extracted_anti_triggers,
             metadata={
                 'pattern_name': pattern_name,
                 'trigger_patterns': trigger_patterns,
@@ -426,6 +489,164 @@ class MemoryWriter:
             score += 0.25
         
         return min(score, 1.0)
+    
+    # ========================================================================
+    # Superpowers Metadata Extraction
+    # ========================================================================
+    
+    def _extract_triggers(self, content: str, episode_type: EpisodeType) -> List[str]:
+        """
+        Extract trigger conditions from content.
+        
+        Triggers are phrases that indicate when this memory should be recalled.
+        """
+        triggers = []
+        lower_content = content.lower()
+        
+        # Extract context-based triggers
+        trigger_patterns = [
+            (r'when\s+([^,\n.]+)', 'when'),
+            (r'if\s+([^,\n.]+)', 'if'),
+            (r'use\s+when\s+([^,\n.]+)', 'use when'),
+            (r'applies?\s+to\s+([^,\n.]+)', 'applies to'),
+            (r'for\s+([^,\n.]+?)\s+(?:use|try|check)', 'for'),
+        ]
+        
+        for pattern, prefix in trigger_patterns:
+            matches = re.findall(pattern, lower_content, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, tuple):
+                    match = match[0]
+                trigger = f"{prefix} {match.strip()}".strip()
+                if len(trigger) > 5 and trigger not in triggers:
+                    triggers.append(trigger)
+        
+        # Add episode-type specific triggers
+        if episode_type == EpisodeType.DECISION:
+            triggers.append('making decisions')
+            triggers.append('deciding')
+        elif episode_type == EpisodeType.ACTION:
+            triggers.append('taking action')
+            triggers.append('performing tasks')
+        elif episode_type == EpisodeType.REFLECTION:
+            triggers.append('reflecting')
+            triggers.append('reviewing')
+        
+        # Extract key entities as triggers
+        entities = re.findall(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b', content)
+        for entity in set(entities):
+            entity_lower = entity.lower()
+            if len(entity_lower) > 3 and entity_lower not in ['the', 'this', 'that', 'user']:
+                triggers.append(f"mentions {entity_lower}")
+        
+        return triggers[:10]  # Limit to top 10 triggers
+    
+    def _extract_symptoms(self, content: str) -> List[str]:
+        """
+        Extract error symptoms and failure patterns from content.
+        
+        Symptoms help match memories to error contexts.
+        """
+        symptoms = []
+        
+        for pattern in self._error_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, tuple):
+                    match = match[0] if match else match
+                symptom = match.strip() if isinstance(match, str) else pattern.replace(r'\b', '').replace(r'(?:', '(').replace(r')?', ')')
+                if symptom and len(symptom) > 3:
+                    symptoms.append(symptom.lower())
+        
+        # Extract specific error messages
+        error_lines = re.findall(r'[A-Z][a-zA-Z]*Error:\s*[^\n]+', content)
+        for error in error_lines:
+            symptoms.append(error.strip().lower())
+        
+        # Extract quoted error messages
+        quoted_errors = re.findall(r'["\']([^"\']*(?:error|fail|exception|bug)[^"\']*)["\']', content, re.IGNORECASE)
+        for error in quoted_errors:
+            symptoms.append(error.strip().lower())
+        
+        return list(set(symptoms))[:10]  # Deduplicate and limit
+    
+    def _extract_aliases(self, content: str) -> List[str]:
+        """
+        Extract synonyms and related terms for flexible matching.
+        
+        Aliases help match queries that use different terminology.
+        """
+        aliases = []
+        lower_content = content.lower()
+        
+        # Extract aliases from "also known as", "aka", "or" patterns
+        aka_patterns = [
+            r'(?:also known as|aka)\s+["\']?([^,"\n.]+)',
+            r'\(([^(]+)\)\s+(?:is|are|refers to)',
+            r'([^,\n]+)(?:\s+or\s+)([^,\n.]+)',
+        ]
+        
+        for pattern in aka_patterns:
+            matches = re.findall(pattern, lower_content, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, tuple):
+                    for m in match:
+                        alias = m.strip()
+                        if len(alias) > 2 and alias not in aliases:
+                            aliases.append(alias)
+                else:
+                    alias = match.strip()
+                    if len(alias) > 2 and alias not in aliases:
+                        aliases.append(alias)
+        
+        # Extract technical terms and acronyms
+        tech_terms = re.findall(r'\b([A-Z]{2,})\b', content)
+        for term in set(tech_terms):
+            term_lower = term.lower()
+            if term_lower not in aliases:
+                aliases.append(term_lower)
+        
+        # Extract important nouns/phrases (capitalized in middle of sentence)
+        noun_phrases = re.findall(r'[a-z]\s+([A-Z][a-z]+(?:\s+[a-z]+){0,2})', content)
+        for phrase in set(noun_phrases):
+            phrase_lower = phrase.lower().strip()
+            if len(phrase_lower) > 3 and phrase_lower not in aliases:
+                aliases.append(phrase_lower)
+        
+        return aliases[:10]
+    
+    def _extract_anti_triggers(self, content: str) -> List[str]:
+        """
+        Extract anti-triggers - when NOT to use this memory.
+        
+        Anti-triggers prevent irrelevant memory recall.
+        """
+        anti_triggers = []
+        lower_content = content.lower()
+        
+        # Extract negations
+        for pattern in self._anti_trigger_patterns:
+            matches = re.findall(pattern, lower_content, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, str):
+                    anti_trigger = match.strip().lower()
+                    if anti_trigger and len(anti_trigger) > 3:
+                        anti_triggers.append(anti_trigger)
+        
+        # Look for explicit "not for" patterns
+        not_for_patterns = [
+            r'(?:not|don\'t|never)\s+(?:for|use|apply)\s+([^,\n.]+)',
+            r'(?:does not|doesn\'t)\s+(?:apply|work)\s+(?:for|with|in)\s+([^,\n.]+)',
+        ]
+        
+        for pattern in not_for_patterns:
+            matches = re.findall(pattern, lower_content, re.IGNORECASE)
+            for match in matches:
+                anti_trigger = match.strip().lower()
+                if anti_trigger and len(anti_trigger) > 3:
+                    anti_triggers.append(f"not for {anti_trigger}")
+        
+        return anti_triggers[:5]  # Limit to top 5
     
     # ========================================================================
     # Fact Extraction
