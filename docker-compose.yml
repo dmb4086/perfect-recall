@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: perfect-recall-db
+    environment:
+      POSTGRES_USER: perfect_recall
+      POSTGRES_PASSWORD: perfect_recall_secret
+      POSTGRES_DB: perfect_recall
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/perfect_recall/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U perfect_recall -d perfect_recall"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - perfect-recall-network
+
+  # Optional: Adminer for database management
+  adminer:
+    image: adminer:latest
+    container_name: perfect-recall-adminer
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      - postgres
+    networks:
+      - perfect-recall-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  perfect-recall-network:
+    driver: bridge

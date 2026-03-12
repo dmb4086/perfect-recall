@@ -1,106 +1,175 @@
 # Perfect Recall 🧠
 
-> Solving the Continuity Crisis in Stateless AI Systems
+> A Four-Tier Memory System for AI Agents
 
-Perfect Recall is a comprehensive memory architecture that transforms stateless AI agents into truly continuous, memory-capable systems.
+Perfect Recall transforms stateless AI agents into truly continuous, memory-capable systems using a cognitive-science-inspired architecture.
 
-## The Problem
+## The Four-Tier Memory Model
 
-AI agents today suffer from **statelessness-induced amnesia**:
-- Each session starts as a blank slate
-- Agents read log files to simulate continuity
-- No genuine memory persists between sessions
-- Users must constantly re-establish context
-
-## The Solution
-
-Perfect Recall introduces the **Memory Continuum**—a four-tier architecture inspired by human cognitive science:
-
-| Tier | Purpose | Human Analog |
-|------|---------|--------------|
-| **Working Memory** | Active context | Conscious awareness |
-| **Episodic Memory** | Event sequences | Autobiographical memory |
-| **Semantic Memory** | Facts & knowledge | General knowledge |
-| **Procedural Memory** | Skills & patterns | Muscle memory |
-
-## Key Features
-
-- ✅ **Cross-Session Persistence**: True continuity between conversations
-- ✅ **Temporal Awareness**: Bi-temporal model (valid time + transaction time)
-- ✅ **Semantic Retrieval**: Vector-based similarity search
-- ✅ **Graph Relationships**: Rich connections between memories
-- ✅ **Smart Context Injection**: Salience-ranked, compressed memories
-- ✅ **Self-Reflection**: Meta-memory capabilities
+| Tier | Purpose | Human Analog | Persistence |
+|------|---------|--------------|-------------|
+| **Working Memory** | Active context | Conscious awareness | Session-scoped |
+| **Episodic Memory** | Event sequences | Autobiographical memory | Persistent |
+| **Semantic Memory** | Facts & knowledge | General knowledge | Persistent |
+| **Procedural Memory** | Skills & patterns | Muscle memory | Persistent |
 
 ## Quick Start
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/perfect-recall.git
-cd perfect-recall
+# Start PostgreSQL with pgvector
+make db-up
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure (see docs/)
-cp config.example.yaml config.yaml
-# Edit config.yaml with your settings
-
-# Run example
+# Run the example
 python examples/basic_usage.py
 ```
 
-## Architecture Overview
+## Usage
+
+```python
+import asyncio
+from perfect_recall import PerfectRecall, EpisodeType
+
+async def main():
+    # Initialize
+    pr = await PerfectRecall.create()
+    
+    # Start session
+    session = await pr.start_session(user_id="user_123")
+    
+    # Record interaction
+    await pr.record_episode(
+        content="User: I need help with Python debugging",
+        episode_type=EpisodeType.MESSAGE,
+        session_id=session.id
+    )
+    
+    # Store a fact
+    await pr.store_fact(
+        subject="user",
+        predicate="programming_language_preference",
+        object="Python"
+    )
+    
+    # Later, recall relevant info
+    memories = await pr.recall("What does the user prefer?")
+    for memory in memories:
+        print(f"- {memory.memory.content}")
+    
+    # End session
+    await pr.end_session(session.id)
+
+asyncio.run(main())
+```
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    PERFECT RECALL                           │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  User Input → Working Memory → Consolidation → Storage     │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
+│  │   Session   │  │   Memory    │  │     Retrieval       │ │
+│  │   Manager   │  │   Writer    │  │     Pipeline        │ │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘ │
 │                                                             │
-│  Query → Retrieval → Reranking → Context Injection → LLM   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              PostgreSQL + pgvector                   │   │
+│  │  • Sessions  • Memory Nodes  • Working Memory       │   │
+│  │  • Episodes  • Relationships • Access Logs          │   │
+│  └─────────────────────────────────────────────────────┘   │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## Key Features
+
+- ✅ **Four-Tier Memory**: Working, Episodic, Semantic, Procedural
+- ✅ **Write Gate**: Intelligent filtering prevents memory spam
+- ✅ **Salience Scoring**: Multi-factor relevance ranking
+- ✅ **Vector Search**: pgvector-powered similarity retrieval
+- ✅ **Session Management**: Cross-session continuity
+- ✅ **Fact Extraction**: Automatic semantic fact extraction
+
+## Project Structure
+
+```
+perfect-recall/
+├── docker-compose.yml          # Postgres + pgvector setup
+├── Makefile                    # Development commands
+├── requirements.txt            # Python dependencies
+├── src/perfect_recall/
+│   ├── __init__.py
+│   ├── core/
+│   │   ├── perfect_recall.py   # Main API
+│   │   ├── memory_writer.py    # Memory capture
+│   │   ├── session_manager.py  # Session lifecycle
+│   │   └── retrieval.py        # Retrieval pipeline
+│   ├── models/
+│   │   ├── memory.py           # Memory models
+│   │   ├── session.py          # Session models
+│   │   └── retrieval.py        # Retrieval models
+│   └── db/
+│       ├── schema.sql          # Database schema
+│       ├── connection.py       # DB connection
+│       ├── sqlalchemy_models.py # ORM models
+│       └── repositories.py     # Data access
+├── examples/
+│   ├── basic_usage.py          # Basic example
+│   └── agent_integration.py    # Agent integration
+└── tests/
+    └── test_memory_writer.py   # Unit tests
+```
+
+## Database Schema
+
+The schema implements the four-tier memory model:
+
+- **sessions**: Session management and snapshots
+- **memory_nodes**: Unified storage for all memory tiers
+- **working_memory**: Active context references
+- **episodes**: Event sequence groupings
+- **memory_relationships**: Graph relationships
+- **memory_access_log**: Access tracking for salience
+
+See `src/perfect_recall/db/schema.sql` for full schema.
+
+## Configuration
+
+Environment variables:
+
+```bash
+DATABASE_URL=postgresql+asyncpg://perfect_recall:perfect_recall_secret@localhost:5432/perfect_recall
+```
+
+## Development
+
+```bash
+# Start database
+make db-up
+
+# Run tests
+make test
+
+# Run example
+make example
+
+# Reset database
+make db-reset
+```
+
 ## Documentation
 
-- [Architecture Specification](docs/PERFECT_RECALL.md) - Complete system design
-- [Implementation Guide](docs/IMPLEMENTATION_GUIDE.md) - Getting started
+- [Implementation Guide](IMPLEMENTATION.md) - Detailed implementation docs
+- [Architecture](docs/V1_ARCHITECTURE.md) - Full architecture specification
 - [API Design](design/API_DESIGN.md) - API reference
-- [Research Notes](research/RESEARCH_NOTES.md) - Background research
-
-## Benchmarks
-
-| Metric | Perfect Recall | Baseline |
-|--------|---------------|----------|
-| Deep Memory Retrieval | 95%+ | 93.4% |
-| Cross-Session Continuity | 90%+ | N/A |
-| Retrieval Latency (p95) | <200ms | N/A |
-| Token Efficiency | 90% reduction | - |
-
-## Roadmap
-
-- [x] Architecture specification
-- [ ] Phase 1: Foundation (storage layer)
-- [ ] Phase 2: Persistence (session management)
-- [ ] Phase 3: Intelligence (smart retrieval)
-- [ ] Phase 4: Refinement (optimization)
-
-## Contributing
-
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
-
-## Acknowledgments
-
-- Inspired by MemGPT, Zep, and cognitive science research
-- Built on open-source vector and graph databases
-- Thanks to the AI agent community for insights
+MIT License
 
 ---
 
