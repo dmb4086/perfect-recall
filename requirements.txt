@@ -6,6 +6,9 @@ pgvector>=0.2.0
 # Async support
 asyncpg>=0.29.0
 
+# HTTP client for Voyage API
+httpx>=0.25.0
+
 # Embeddings (choose one or configure your own)
 openai>=1.0.0
 
