@@ -8,7 +8,14 @@ from sqlalchemy import (
     Column, String, Text, DateTime, Float, Integer, 
     ForeignKey, JSON, ARRAY, UniqueConstraint, Index
 )
-from sqlalchemy.dialects.postgresql import UUID as PGUUID, TSVECTOR, VECTOR
+from sqlalchemy.dialects.postgresql import UUID as PGUUID, TSVECTOR
+try:
+    from pgvector.sqlalchemy import Vector as VECTOR
+except ImportError:
+    # Fallback for older pgvector versions
+    from sqlalchemy.dialects.postgresql import ARRAY
+    # VECTOR will be handled as ARRAY(FLOAT) in fallback
+    VECTOR = None
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -30,7 +37,7 @@ class SessionORM(Base):
     message_count = Column(Integer, default=0)
     token_usage = Column(Integer, default=0)
     
-    metadata = Column(JSON, nullable=False, default=dict)
+    extra_metadata = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     
     # Relationships
@@ -50,7 +57,7 @@ class EpisodeORM(Base):
     
     episode_type = Column(String(50), nullable=False, default="interaction")
     summary = Column(Text)
-    summary_embedding = Column(VECTOR(1536))
+    summary_embedding = Column(VECTOR(1536) if VECTOR else ARRAY(Float))
     
     participant_ids = Column(ARRAY(String), default=list)
     topic_tags = Column(ARRAY(String), default=list)
@@ -58,7 +65,7 @@ class EpisodeORM(Base):
     parent_episode_id = Column(PGUUID(as_uuid=True), ForeignKey("episodes.id"))
     memory_count = Column(Integer, default=0)
     
-    metadata = Column(JSON, nullable=False, default=dict)
+    extra_metadata = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     
     # Relationships
@@ -73,7 +80,7 @@ class MemoryNodeORM(Base):
     id = Column(PGUUID(as_uuid=True), primary_key=True, default="uuid_generate_v4()")
     memory_tier = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
-    embedding = Column(VECTOR(1536))
+    embedding = Column(VECTOR(1536) if VECTOR else ARRAY(Float))
     
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     valid_from = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
@@ -98,18 +105,19 @@ class MemoryNodeORM(Base):
     aliases = Column(ARRAY(String), default=list)
     anti_triggers = Column(ARRAY(String), default=list)
     
-    metadata = Column(JSON, nullable=False, default=dict)
+    extra_metadata = Column(JSON, nullable=False, default=dict)
     search_vector = Column(TSVECTOR)
     
     # Relationships
     source_episode = relationship("EpisodeORM", back_populates="memories")
     working_memory_slots = relationship("WorkingMemoryORM", back_populates="memory", cascade="all, delete-orphan")
     
-    # Table args for indexes
-    __table_args__ = (
-        Index("idx_memory_embedding", "embedding", postgresql_using="ivfflat", 
-              postgresql_ops={"embedding": "vector_cosine_ops"}, postgresql_with={"lists": 100}),
-    )
+    # Table args for indexes (only if VECTOR is available)
+    if VECTOR:
+        __table_args__ = (
+            Index("idx_memory_embedding", "embedding", postgresql_using="ivfflat", 
+                  postgresql_ops={"embedding": "vector_cosine_ops"}, postgresql_with={"lists": 100}),
+        )
 
 
 class WorkingMemoryORM(Base):
@@ -127,7 +135,7 @@ class WorkingMemoryORM(Base):
     expires_at = Column(DateTime(timezone=True))
     position = Column(Integer, nullable=False, default=0)
     
-    metadata = Column(JSON, nullable=False, default=dict)
+    extra_metadata = Column(JSON, nullable=False, default=dict)
     
     # Relationships
     session = relationship("SessionORM", back_populates="working_memory_slots")
@@ -149,7 +157,7 @@ class MemoryRelationshipORM(Base):
     strength = Column(Float, nullable=False, default=1.0)
     
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    metadata = Column(JSON, nullable=False, default=dict)
+    extra_metadata = Column(JSON, nullable=False, default=dict)
     
     __table_args__ = (
         UniqueConstraint("source_memory_id", "target_memory_id", "relationship_type"),

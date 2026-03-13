@@ -4,6 +4,7 @@ Validates the API structure without requiring Postgres.
 """
 
 import asyncio
+import pytest
 from datetime import datetime
 from typing import List, Optional
 
@@ -73,6 +74,7 @@ class MockMemoryWriter:
         return memory
 
 
+@pytest.mark.asyncio
 async def test_perfect_recall():
     """Test the mock Perfect Recall system."""
     print("=" * 60)
