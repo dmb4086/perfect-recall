@@ -18,7 +18,8 @@ import pytest
 import pytest_asyncio
 from uuid import UUID
 
-from perfect_recall.db.in_memory import InMemoryDatabaseManager, InMemoryMemoryRepository
+from perfect_recall.db.connection import DatabaseManager, reset_db_manager
+from perfect_recall.db.repositories import MemoryRepository, SessionRepository
 from perfect_recall.core.memory_writer import MemoryWriter
 from perfect_recall.core.retrieval import RetrievalPipeline, SalienceScorer
 from perfect_recall.core.abstention import AbstentionController
@@ -38,13 +39,15 @@ def mock_embedding(text: str) -> list[float]:
     return embedding.tolist()
 
 
+# Use real PostgreSQL database for integration tests
 @pytest_asyncio.fixture
 async def db():
-    """Create in-memory database."""
-    db = InMemoryDatabaseManager()
-    await db.initialize()
-    yield db
-    await db.close()
+    """Create PostgreSQL database connection."""
+    db_manager = DatabaseManager()
+    await db_manager.initialize()
+    # Don't create tables here - assume they exist from schema.sql
+    yield db_manager
+    await db_manager.close()
 
 
 @pytest.fixture
@@ -153,7 +156,8 @@ class TestPerfectRecallV1:
         
         assert proc is not None
         assert proc.memory_tier == MemoryTier.PROCEDURAL
-        assert "keyerror" in proc.triggers
+        # Check case-insensitively since triggers preserve original case
+        assert any("keyerror" in t.lower() for t in proc.triggers)
         print(f"   ✅ Procedural memory stored: {proc.content[:50]}...")
         print(f"   📝 Triggers: {proc.triggers[:3]}")
     

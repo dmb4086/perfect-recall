@@ -28,7 +28,7 @@ CREATE TABLE sessions (
     token_usage INTEGER DEFAULT 0,
     
     -- Metadata
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -69,7 +69,7 @@ CREATE TABLE episodes (
     memory_count INTEGER DEFAULT 0,
     
     -- Flexible metadata
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -123,7 +123,7 @@ CREATE TABLE memory_nodes (
     anti_triggers TEXT[] DEFAULT '{}',    -- When NOT to use this memory (negative context indicators)
     
     -- Flexible metadata
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     -- Full-text search vector
     search_vector TSVECTOR
@@ -184,7 +184,7 @@ CREATE TABLE working_memory (
     -- Position in working memory stack
     position INTEGER NOT NULL DEFAULT 0,
     
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     UNIQUE (session_id, memory_id)
 );
@@ -219,7 +219,7 @@ CREATE TABLE memory_relationships (
     strength FLOAT NOT NULL DEFAULT 1.0 CHECK (strength BETWEEN 0 AND 1),
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     UNIQUE (source_memory_id, target_memory_id, relationship_type)
 );
@@ -302,7 +302,7 @@ CREATE TABLE procedural_patterns (
     -- Context where pattern applies
     applicable_contexts TEXT[] DEFAULT '{}',
     
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

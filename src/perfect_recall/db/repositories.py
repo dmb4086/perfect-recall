@@ -82,31 +82,66 @@ class MemoryRepository:
         
         Returns list of (memory, similarity_score) tuples.
         """
-        # Convert embedding to string format for SQL
-        embedding_str = f"[{','.join(str(x) for x in embedding)}]"
+        # Use raw SQL with proper vector casting for pgvector
+        embedding_str = f"'[{','.join(str(x) for x in embedding)}]'::vector"
         
-        query = select(
-            MemoryNodeORM,
-            (1 - MemoryNodeORM.embedding.cosine_distance(embedding_str)).label("similarity")
-        ).where(
-            and_(
-                MemoryNodeORM.embedding.isnot(None),
-                (1 - MemoryNodeORM.embedding.cosine_distance(embedding_str)) >= threshold,
-                or_(
-                    MemoryNodeORM.valid_until.is_(None),
-                    MemoryNodeORM.valid_until > text("NOW()")
-                )
-            )
-        ).order_by(
-            MemoryNodeORM.embedding.cosine_distance(embedding_str)
-        ).limit(limit)
+        sql = f"""
+            SELECT 
+                id, memory_tier, content, embedding, created_at, valid_from, 
+                valid_until, importance_score, access_count, last_accessed,
+                emotional_valence, confidence, source_type, source_episode_id,
+                version, supersedes_id, superseded_by_id, triggers, symptoms,
+                aliases, anti_triggers, extra_metadata,
+                1 - (embedding <=> {embedding_str}) as similarity
+            FROM memory_nodes
+            WHERE embedding IS NOT NULL
+              AND 1 - (embedding <=> {embedding_str}) >= :threshold
+              AND (valid_until IS NULL OR valid_until > NOW())
+        """
+        
+        params: Dict[str, Any] = {"threshold": threshold}
         
         if memory_tiers:
             tier_values = [t.value for t in memory_tiers]
-            query = query.where(MemoryNodeORM.memory_tier.in_(tier_values))
+            placeholders = ", ".join([f":tier_{i}" for i in range(len(tier_values))])
+            sql += f" AND memory_tier IN ({placeholders})"
+            for i, tier in enumerate(tier_values):
+                params[f"tier_{i}"] = tier
         
-        result = await self.session.execute(query)
-        return [(self._to_model(row[0]), float(row[1])) for row in result.all()]
+        sql += f" ORDER BY embedding <=> {embedding_str} LIMIT :limit"
+        params["limit"] = limit
+        
+        result = await self.session.execute(text(sql), params)
+        
+        memories: List[tuple[MemoryNode, float]] = []
+        for row in result:
+            memory = MemoryNode(
+                id=row.id,
+                memory_tier=MemoryTier(row.memory_tier),
+                content=row.content,
+                embedding=list(row.embedding) if row.embedding else None,
+                created_at=row.created_at,
+                valid_from=row.valid_from,
+                valid_until=row.valid_until,
+                importance_score=row.importance_score,
+                access_count=row.access_count,
+                last_accessed=row.last_accessed,
+                emotional_valence=row.emotional_valence,
+                confidence=row.confidence,
+                source_type=row.source_type,
+                source_episode_id=row.source_episode_id,
+                version=row.version,
+                supersedes_id=row.supersedes_id,
+                superseded_by_id=row.superseded_by_id,
+                triggers=list(row.triggers) if row.triggers else [],
+                symptoms=list(row.symptoms) if row.symptoms else [],
+                aliases=list(row.aliases) if row.aliases else [],
+                anti_triggers=list(row.anti_triggers) if row.anti_triggers else [],
+                metadata=row.extra_metadata or {},
+            )
+            memories.append((memory, float(row.similarity)))
+        
+        return memories
     
     async def log_access(
         self,
