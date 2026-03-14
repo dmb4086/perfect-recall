@@ -25,6 +25,7 @@ from perfect_recall.core.abstention import AbstentionController
 from perfect_recall.models.memory import MemoryTier
 
 from memory_logger import get_logger
+from local_embeddings import get_embedding_func
 
 
 class MemoryOrchestrator:
@@ -63,17 +64,15 @@ class MemoryOrchestrator:
         
         await self.db.initialize()
         
+        # Use local embeddings
+        local_embed = get_embedding_func()
+        
         # Embedding function with logging
         def embedding_with_logs(text: str) -> list[float]:
             start = time.time()
             
-            # Generate embedding (mock for now)
-            hash_bytes = hashlib.sha256(text.encode()).digest()
-            import numpy as np
-            np.random.seed(int.from_bytes(hash_bytes[:4], 'big'))
-            embedding = np.random.randn(1536).astype(np.float32)
-            embedding = embedding / np.linalg.norm(embedding)
-            result = embedding.tolist()
+            # Generate embedding using local embedder
+            result = local_embed(text)
             
             latency = (time.time() - start) * 1000
             embedding_hash = hashlib.sha256(str(result).encode()).hexdigest()[:16]
@@ -81,7 +80,7 @@ class MemoryOrchestrator:
             self.logger.log_embedding(
                 text=text,
                 embedding_hash=embedding_hash,
-                model="mock_hash_v1",
+                model="local_hash_v1",
                 latency_ms=latency,
             )
             
@@ -102,7 +101,7 @@ class MemoryOrchestrator:
         self.abstention = AbstentionController()
         
         self._initialized = True
-        print("✅ Memory Orchestrator initialized with full logging")
+        print("✅ Memory Orchestrator initialized with local embeddings")
     
     async def get_context(self, query: str, limit: int = 5) -> dict:
         """

@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from memory_orchestrator import get_orchestrator, MemoryOrchestrator
 from memory_logger import get_logger
+from local_embeddings import get_embedding_func
 
 
 @dataclass
