@@ -389,7 +389,8 @@ class PerfectRecall:
     
     async def health_check(self) -> Dict[str, Any]:
         """Check system health."""
+        db_healthy = await self.db.health_check()
         return {
-            "database": await self.db.health_check(),
-            "status": "healthy" if await self.db.health_check() else "unhealthy",
+            "database": db_healthy,
+            "status": "healthy" if db_healthy else "unhealthy",
         }

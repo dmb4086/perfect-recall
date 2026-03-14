@@ -39,7 +39,13 @@ class MemoryRepository:
             version=memory.version,
             supersedes_id=memory.supersedes_id,
             superseded_by_id=memory.superseded_by_id,
-            metadata=memory.metadata,
+            # FIXED: Use extra_metadata (ORM column name), not metadata
+            extra_metadata=memory.metadata,
+            # FIXED: Map superpowers fields
+            triggers=memory.triggers,
+            symptoms=memory.symptoms,
+            aliases=memory.aliases,
+            anti_triggers=memory.anti_triggers,
         )
         self.session.add(orm)
         await self.session.flush()
@@ -66,7 +72,12 @@ class MemoryRepository:
             orm.access_count = memory.access_count
             orm.last_accessed = memory.last_accessed
             orm.valid_until = memory.valid_until
-            orm.metadata = memory.metadata
+            orm.extra_metadata = memory.metadata  # FIXED: Use extra_metadata
+            # FIXED: Update superpowers fields
+            orm.triggers = memory.triggers
+            orm.symptoms = memory.symptoms
+            orm.aliases = memory.aliases
+            orm.anti_triggers = memory.anti_triggers
             await self.session.flush()
         return memory
     
@@ -208,7 +219,13 @@ class MemoryRepository:
             version=orm.version,
             supersedes_id=orm.supersedes_id,
             superseded_by_id=orm.superseded_by_id,
-            metadata=orm.metadata or {},
+            # FIXED: Use extra_metadata (ORM column), map to metadata (Pydantic field)
+            metadata=orm.extra_metadata or {},
+            # FIXED: Map superpowers fields
+            triggers=list(orm.triggers) if orm.triggers else [],
+            symptoms=list(orm.symptoms) if orm.symptoms else [],
+            aliases=list(orm.aliases) if orm.aliases else [],
+            anti_triggers=list(orm.anti_triggers) if orm.anti_triggers else [],
         )
 
 
@@ -228,7 +245,7 @@ class SessionRepository:
             context_snapshot=session_obj.context_snapshot,
             message_count=session_obj.message_count,
             token_usage=session_obj.token_usage,
-            metadata=session_obj.metadata,
+            extra_metadata=session_obj.metadata,  # FIXED: Use extra_metadata
         )
         self.session.add(orm)
         await self.session.flush()
@@ -310,7 +327,7 @@ class SessionRepository:
             context_snapshot=orm.context_snapshot or {},
             message_count=orm.message_count,
             token_usage=orm.token_usage,
-            metadata=orm.metadata or {},
+            metadata=orm.extra_metadata or {},  # FIXED: Use extra_metadata
             created_at=orm.created_at,
         )
     

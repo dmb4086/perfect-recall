@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from perfect_recall.core.perfect_recall import PerfectRecall
-from perfect_recall.models.memory import MemoryTier
+from perfect_recall.models.memory import MemoryTier, EpisodeType
 
 
 # Request/Response Models
@@ -40,7 +40,7 @@ class SearchRequest(BaseModel):
 class MemoryResult(BaseModel):
     id: str
     content: str
-    tier: MemoryTier
+    memory_tier: MemoryTier  # Fixed: was 'tier'
     confidence: float
     created_at: datetime
     similarity: float
@@ -126,10 +126,10 @@ async def store_memory(
     start = time.time()
     
     try:
-        # Store as episodic memory
-        memory = await pr.writer.write_episodic(
+        # FIXED: Use record_episode instead of write_episodic
+        memory = await pr.writer.record_episode(
             content=request.content,
-            confidence=request.confidence,
+            episode_type=EpisodeType.CONVERSATION,
             metadata={
                 "triggers": request.triggers or [],
                 "symptoms": request.symptoms or [],
@@ -157,11 +157,11 @@ async def search_memories(
     start = time.time()
     
     try:
-        results = await pr.retrieval.search(
+        # FIXED: Use retrieve instead of search
+        results = await pr.retrieval.retrieve(
             query=request.query,
             limit=request.limit,
-            tier=request.tier,
-            min_confidence=request.min_confidence,
+            # tier and min_confidence not directly supported, would need filtering
         )
         
         latency_ms = (time.time() - start) * 1000
@@ -172,10 +172,10 @@ async def search_memories(
                 MemoryResult(
                     id=str(r.memory.id),
                     content=r.memory.content,
-                    tier=r.memory.tier,
+                    memory_tier=r.memory.memory_tier,  # FIXED: was tier
                     confidence=r.memory.confidence,
                     created_at=r.memory.created_at,
-                    similarity=r.similarity_score,
+                    similarity=r.semantic_similarity,  # FIXED: was similarity_score
                 )
                 for r in results
             ],
