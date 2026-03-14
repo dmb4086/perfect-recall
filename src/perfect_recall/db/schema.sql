@@ -36,7 +36,7 @@ CREATE TABLE sessions (
 CREATE INDEX idx_sessions_user ON sessions(user_id);
 CREATE INDEX idx_sessions_agent ON sessions(agent_id);
 CREATE INDEX idx_sessions_time ON sessions(started_at, ended_at);
-CREATE INDEX idx_sessions_metadata ON sessions USING GIN (metadata);
+CREATE INDEX idx_sessions_metadata ON sessions USING GIN (extra_metadata);
 
 -- ============================================================================
 -- 2. EPISODES - Event Sequences (Episodic Memory)
@@ -135,7 +135,7 @@ CREATE INDEX idx_memory_created ON memory_nodes(created_at);
 CREATE INDEX idx_memory_valid ON memory_nodes(valid_from, valid_until);
 CREATE INDEX idx_memory_importance ON memory_nodes(importance_score DESC);
 CREATE INDEX idx_memory_last_accessed ON memory_nodes(last_accessed DESC);
-CREATE INDEX idx_memory_metadata ON memory_nodes USING GIN (metadata);
+CREATE INDEX idx_memory_metadata ON memory_nodes USING GIN (extra_metadata);
 CREATE INDEX idx_memory_search ON memory_nodes USING GIN (search_vector);
 CREATE INDEX idx_memory_source_episode ON memory_nodes(source_episode_id);
 
