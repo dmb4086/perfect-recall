@@ -7,7 +7,7 @@ Implements the Write Gate pattern for intelligent memory filtering.
 
 import re
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Callable
 from uuid import UUID
 
@@ -178,7 +178,7 @@ class MemoryWriter:
             await repo.create(memory)
         
         # Track this write
-        self._recent_writes.append(datetime.utcnow())
+        self._recent_writes.append(datetime.now(timezone.utc))
         
         # Extract facts asynchronously (background task)
         # For now, synchronous execution
@@ -353,7 +353,7 @@ class MemoryWriter:
         
         expires_at = None
         if expires_in_minutes:
-            expires_at = datetime.utcnow() + timedelta(minutes=expires_in_minutes)
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
         
         memory = MemoryNode(
             memory_tier=MemoryTier.WORKING,
@@ -399,7 +399,7 @@ class MemoryWriter:
         # Dynamic threshold based on recent write rate
         recent_rate = len([
             w for w in self._recent_writes
-            if w > datetime.utcnow() - timedelta(minutes=5)
+            if w > datetime.now(timezone.utc) - timedelta(minutes=5)
         ])
         dynamic_threshold = self.write_threshold + (recent_rate / 100) * 0.2
         

@@ -1,6 +1,6 @@
 """Session management for Perfect Recall."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
@@ -89,7 +89,7 @@ class SessionManager:
             snapshot = {
                 'working_memory_ids': [str(m.id) for m in working_memories],
                 'working_memory_count': len(working_memories),
-                'ended_at': datetime.utcnow().isoformat(),
+                'ended_at': datetime.now(timezone.utc).isoformat(),
             }
             
             session.context_snapshot = snapshot

@@ -5,7 +5,7 @@ Implements multi-stage retrieval with salience scoring.
 """
 
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Callable
 
 from ..models.memory import MemoryNode, MemoryTier
@@ -168,11 +168,10 @@ class SalienceScorer:
             return 0.5  # Default score if no time info
         
         # Handle timezone-aware vs naive datetime comparison
-        now = datetime.utcnow()
-        if reference_time.tzinfo is not None:
-            # reference_time is timezone-aware, make now timezone-aware too
-            from datetime import timezone
-            now = now.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        if reference_time.tzinfo is None:
+            # reference_time is timezone-naive, make it timezone-aware
+            reference_time = reference_time.replace(tzinfo=timezone.utc)
         
         age_hours = (now - reference_time).total_seconds() / 3600
         return math.exp(-age_hours / 168)

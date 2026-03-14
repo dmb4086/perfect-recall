@@ -1,6 +1,6 @@
 """Session and working memory models."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -39,7 +39,7 @@ class Session(BaseModel):
     
     def duration_seconds(self) -> Optional[float]:
         """Get session duration in seconds."""
-        end = self.ended_at or datetime.utcnow()
+        end = self.ended_at or datetime.now(timezone.utc)
         return (end - self.started_at).total_seconds()
     
     def to_snapshot(self) -> Dict[str, Any]:
@@ -48,7 +48,7 @@ class Session(BaseModel):
             "session_id": str(self.id),
             "user_id": self.user_id,
             "agent_id": self.agent_id,
-            "ended_at": datetime.utcnow().isoformat(),
+            "ended_at": datetime.now(timezone.utc).isoformat(),
             "message_count": self.message_count,
             "token_usage": self.token_usage,
         }
@@ -84,7 +84,7 @@ class WorkingMemorySlot(BaseModel):
         """Check if this slot has expired."""
         if self.expires_at is None:
             return False
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
 
 class SessionManagerState(BaseModel):
@@ -107,6 +107,6 @@ class SessionManagerState(BaseModel):
         """End a session and remove from active."""
         session = self.active_sessions.pop(session_id, None)
         if session:
-            session.ended_at = datetime.utcnow()
+            session.ended_at = datetime.now(timezone.utc)
             self.working_memory_cache.pop(session_id, None)
         return session

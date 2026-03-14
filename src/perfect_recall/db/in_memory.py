@@ -11,16 +11,14 @@ import hashlib
 import numpy as np
 from typing import AsyncGenerator, Optional, List, Tuple, Dict, Any
 from uuid import UUID, uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import NullPool
-from sqlalchemy import select, desc, func, text, Column, String, Text, DateTime, Float, Integer, ForeignKey, JSON
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.dialects.sqlite import BLOB
+from sqlalchemy import select, desc, func, text
 
-from .sqlalchemy_models import Base
+from .sqlite_models import Base, SessionORM, EpisodeORM, MemoryNodeORM, WorkingMemoryORM, MemoryAccessLogORM
 
 
 # ============================================================================
@@ -85,12 +83,6 @@ class InMemoryDatabaseManager:
     
     async def _create_tables(self):
         """Create all tables from SQLAlchemy metadata."""
-        from .sqlalchemy_models import (
-            MemoryNodeORM, SessionORM, EpisodeORM, 
-            WorkingMemoryORM, MemoryAccessLogORM,
-            MemoryRelationshipORM, MemoryConflictORM
-        )
-        
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     
@@ -137,14 +129,13 @@ class InMemoryMemoryRepository:
     
     async def create(self, memory) -> Any:
         """Create a memory node."""
-        from .sqlalchemy_models import MemoryNodeORM
         from ..models.memory import MemoryTier
         
         orm = MemoryNodeORM(
-            id=memory.id if memory.id else uuid4(),
+            id=str(memory.id) if memory.id else str(uuid4()),
             memory_tier=memory.memory_tier.value if isinstance(memory.memory_tier, MemoryTier) else memory.memory_tier,
             content=memory.content,
-            embedding=memory.embedding,
+            embedding=memory.embedding,  # Already a list, will be stored as JSON
             valid_from=memory.valid_from,
             valid_until=memory.valid_until,
             importance_score=memory.importance_score,
@@ -153,14 +144,14 @@ class InMemoryMemoryRepository:
             emotional_valence=memory.emotional_valence,
             confidence=memory.confidence,
             source_type=memory.source_type.value if hasattr(memory.source_type, 'value') else memory.source_type,
-            source_episode_id=memory.source_episode_id,
+            source_episode_id=str(memory.source_episode_id) if memory.source_episode_id else None,
             version=memory.version,
-            supersedes_id=memory.supersedes_id,
-            superseded_by_id=memory.superseded_by_id,
-            triggers=memory.triggers,
-            symptoms=memory.symptoms,
-            aliases=memory.aliases,
-            anti_triggers=memory.anti_triggers,
+            supersedes_id=str(memory.supersedes_id) if memory.supersedes_id else None,
+            superseded_by_id=str(memory.superseded_by_id) if memory.superseded_by_id else None,
+            triggers=memory.triggers,  # Stored as JSON
+            symptoms=memory.symptoms,  # Stored as JSON
+            aliases=memory.aliases,  # Stored as JSON
+            anti_triggers=memory.anti_triggers,  # Stored as JSON
             extra_metadata=memory.metadata,
         )
         self.session.add(orm)
@@ -169,11 +160,10 @@ class InMemoryMemoryRepository:
     
     async def get_by_id(self, memory_id: UUID) -> Optional[Any]:
         """Get memory by ID."""
-        from .sqlalchemy_models import MemoryNodeORM
-        from ..models.memory import MemoryNode, MemoryTier
+        from ..models.memory import MemoryNode, MemoryTier, SourceType
         
         result = await self.session.execute(
-            select(MemoryNodeORM).where(MemoryNodeORM.id == memory_id)
+            select(MemoryNodeORM).where(MemoryNodeORM.id == str(memory_id))
         )
         orm = result.scalar_one_or_none()
         if not orm:
@@ -193,12 +183,13 @@ class InMemoryMemoryRepository:
         
         Falls back to text search for memories without embeddings.
         """
-        from .sqlalchemy_models import MemoryNodeORM
         from ..models.memory import MemoryNode, MemoryTier
+        
+        now = datetime.now(timezone.utc)
         
         # Get all active memories
         query = select(MemoryNodeORM).where(
-            (MemoryNodeORM.valid_until == None) | (MemoryNodeORM.valid_until > datetime.utcnow())
+            (MemoryNodeORM.valid_until == None) | (MemoryNodeORM.valid_until > now)
         )
         
         if memory_tiers:
@@ -226,8 +217,6 @@ class InMemoryMemoryRepository:
     
     async def search_by_text(self, query_text: str, limit: int = 10) -> List[Any]:
         """Simple text search for memories."""
-        from .sqlalchemy_models import MemoryNodeORM
-        
         # Simple case-insensitive substring search
         pattern = f"%{query_text.lower()}%"
         result = await self.session.execute(
@@ -245,25 +234,22 @@ class InMemoryMemoryRepository:
         query_text: Optional[str] = None,
     ):
         """Log a memory access."""
-        from .sqlalchemy_models import MemoryAccessLogORM
-        
         log = MemoryAccessLogORM(
-            memory_id=memory_id,
-            session_id=session_id,
+            memory_id=str(memory_id),
+            session_id=str(session_id) if session_id else None,
             access_type=access_type,
             query_text=query_text,
         )
         self.session.add(log)
         
         # Update access count
-        from .sqlalchemy_models import MemoryNodeORM
         result = await self.session.execute(
-            select(MemoryNodeORM).where(MemoryNodeORM.id == memory_id)
+            select(MemoryNodeORM).where(MemoryNodeORM.id == str(memory_id))
         )
         memory = result.scalar_one_or_none()
         if memory:
             memory.access_count += 1
-            memory.last_accessed = datetime.utcnow()
+            memory.last_accessed = datetime.now(timezone.utc)
         
         await self.session.flush()
     
@@ -272,7 +258,7 @@ class InMemoryMemoryRepository:
         from ..models.memory import MemoryNode, MemoryTier, SourceType
         
         return MemoryNode(
-            id=orm.id,
+            id=UUID(orm.id),
             memory_tier=MemoryTier(orm.memory_tier),
             content=orm.content,
             embedding=orm.embedding,
@@ -285,10 +271,10 @@ class InMemoryMemoryRepository:
             emotional_valence=orm.emotional_valence,
             confidence=orm.confidence,
             source_type=SourceType(orm.source_type),
-            source_episode_id=orm.source_episode_id,
+            source_episode_id=UUID(orm.source_episode_id) if orm.source_episode_id else None,
             version=orm.version,
-            supersedes_id=orm.supersedes_id,
-            superseded_by_id=orm.superseded_by_id,
+            supersedes_id=UUID(orm.supersedes_id) if orm.supersedes_id else None,
+            superseded_by_id=UUID(orm.superseded_by_id) if orm.superseded_by_id else None,
             triggers=list(orm.triggers) if orm.triggers else [],
             symptoms=list(orm.symptoms) if orm.symptoms else [],
             aliases=list(orm.aliases) if orm.aliases else [],
@@ -305,10 +291,8 @@ class InMemorySessionRepository:
     
     async def create(self, session_obj) -> Any:
         """Create a session."""
-        from .sqlalchemy_models import SessionORM
-        
         orm = SessionORM(
-            id=session_obj.id if session_obj.id else uuid4(),
+            id=str(session_obj.id) if session_obj.id else str(uuid4()),
             user_id=session_obj.user_id,
             agent_id=session_obj.agent_id,
             started_at=session_obj.started_at,
@@ -323,18 +307,17 @@ class InMemorySessionRepository:
     
     async def get_by_id(self, session_id: UUID) -> Optional[Any]:
         """Get session by ID."""
-        from .sqlalchemy_models import SessionORM
         from ..models.session import Session
         
         result = await self.session.execute(
-            select(SessionORM).where(SessionORM.id == session_id)
+            select(SessionORM).where(SessionORM.id == str(session_id))
         )
         orm = result.scalar_one_or_none()
         if not orm:
             return None
         
         return Session(
-            id=orm.id,
+            id=UUID(orm.id),
             user_id=orm.user_id,
             agent_id=orm.agent_id,
             started_at=orm.started_at,
@@ -353,7 +336,6 @@ class InMemorySessionRepository:
         active_only: bool = False,
     ) -> List[Any]:
         """Get sessions for a user."""
-        from .sqlalchemy_models import SessionORM
         from ..models.session import Session
         
         query = select(SessionORM).where(SessionORM.user_id == user_id)
@@ -366,7 +348,7 @@ class InMemorySessionRepository:
         result = await self.session.execute(query)
         return [
             Session(
-                id=orm.id,
+                id=UUID(orm.id),
                 user_id=orm.user_id,
                 agent_id=orm.agent_id,
                 started_at=orm.started_at,
@@ -382,12 +364,10 @@ class InMemorySessionRepository:
     
     async def add_working_memory_slot(self, slot) -> Any:
         """Add a working memory slot."""
-        from .sqlalchemy_models import WorkingMemoryORM
-        
         orm = WorkingMemoryORM(
-            id=slot.id if slot.id else uuid4(),
-            session_id=slot.session_id,
-            memory_id=slot.memory_id,
+            id=str(slot.id) if slot.id else str(uuid4()),
+            session_id=str(slot.session_id),
+            memory_id=str(slot.memory_id),
             priority=slot.priority,
             slot_type=slot.slot_type,
             added_at=slot.added_at,
@@ -401,20 +381,19 @@ class InMemorySessionRepository:
     
     async def get_working_memory(self, session_id: UUID) -> List[Any]:
         """Get working memory slots for a session."""
-        from .sqlalchemy_models import WorkingMemoryORM
         from ..models.session import WorkingMemorySlot
         
         result = await self.session.execute(
             select(WorkingMemoryORM)
-            .where(WorkingMemoryORM.session_id == session_id)
+            .where(WorkingMemoryORM.session_id == str(session_id))
             .order_by(WorkingMemoryORM.position)
         )
         
         return [
             WorkingMemorySlot(
-                id=orm.id,
-                session_id=orm.session_id,
-                memory_id=orm.memory_id,
+                id=UUID(orm.id),
+                session_id=UUID(orm.session_id),
+                memory_id=UUID(orm.memory_id),
                 priority=orm.priority,
                 slot_type=orm.slot_type,
                 added_at=orm.added_at,

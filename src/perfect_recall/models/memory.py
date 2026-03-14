@@ -1,6 +1,6 @@
 """Memory node models for the four-tier memory system."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
@@ -85,7 +85,7 @@ class MemoryNode(BaseModel):
         """Check if this memory is still valid."""
         if self.valid_until is None:
             return True
-        return datetime.utcnow() < self.valid_until
+        return datetime.now(timezone.utc) < self.valid_until
     
     def calculate_salience(self) -> float:
         """
@@ -104,7 +104,7 @@ class MemoryNode(BaseModel):
         if self.last_accessed is None:
             recency = 0.1
         else:
-            age_hours = (datetime.utcnow() - self.last_accessed).total_seconds() / 3600
+            age_hours = (datetime.now(timezone.utc) - self.last_accessed).total_seconds() / 3600
             recency = math.exp(-age_hours / 168) * 0.3  # 168 hours = 1 week
         
         return importance + frequency + recency
@@ -200,5 +200,5 @@ class ProceduralPattern(BaseModel):
                     (self.avg_execution_time_ms * (total - 1) + execution_time_ms) / total
                 )
         
-        self.last_executed_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.last_executed_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(timezone.utc)
