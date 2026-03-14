@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     Column, String, Text, DateTime, Float, Integer, 
@@ -25,7 +25,7 @@ class SessionORM(Base):
     """ORM model for sessions table."""
     __tablename__ = "sessions"
     
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default="uuid_generate_v4()")
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id = Column(String(100), nullable=False)
     agent_id = Column(String(100))
     
@@ -49,7 +49,7 @@ class EpisodeORM(Base):
     """ORM model for episodes table."""
     __tablename__ = "episodes"
     
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default="uuid_generate_v4()")
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     session_id = Column(PGUUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"))
     
     started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
@@ -77,7 +77,7 @@ class MemoryNodeORM(Base):
     """ORM model for memory_nodes table."""
     __tablename__ = "memory_nodes"
     
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default="uuid_generate_v4()")
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     memory_tier = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     embedding = Column(VECTOR(1536) if VECTOR else ARRAY(Float))
@@ -124,7 +124,7 @@ class WorkingMemoryORM(Base):
     """ORM model for working_memory table."""
     __tablename__ = "working_memory"
     
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default="uuid_generate_v4()")
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     session_id = Column(PGUUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
     memory_id = Column(PGUUID(as_uuid=True), ForeignKey("memory_nodes.id", ondelete="CASCADE"), nullable=False)
     
@@ -150,7 +150,7 @@ class MemoryRelationshipORM(Base):
     """ORM model for memory_relationships table."""
     __tablename__ = "memory_relationships"
     
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default="uuid_generate_v4()")
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     source_memory_id = Column(PGUUID(as_uuid=True), ForeignKey("memory_nodes.id", ondelete="CASCADE"), nullable=False)
     target_memory_id = Column(PGUUID(as_uuid=True), ForeignKey("memory_nodes.id", ondelete="CASCADE"), nullable=False)
     relationship_type = Column(String(50), nullable=False)
@@ -168,7 +168,7 @@ class MemoryAccessLogORM(Base):
     """ORM model for memory_access_log table."""
     __tablename__ = "memory_access_log"
     
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default="uuid_generate_v4()")
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     memory_id = Column(PGUUID(as_uuid=True), ForeignKey("memory_nodes.id", ondelete="CASCADE"), nullable=False)
     session_id = Column(PGUUID(as_uuid=True), ForeignKey("sessions.id", ondelete="SET NULL"))
     
@@ -181,7 +181,7 @@ class MemoryConflictORM(Base):
     """ORM model for memory_conflicts table."""
     __tablename__ = "memory_conflicts"
     
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default="uuid_generate_v4()")
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     memory_a_id = Column(PGUUID(as_uuid=True), ForeignKey("memory_nodes.id"), nullable=False)
     memory_b_id = Column(PGUUID(as_uuid=True), ForeignKey("memory_nodes.id"), nullable=False)
     

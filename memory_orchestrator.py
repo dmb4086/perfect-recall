@@ -25,7 +25,42 @@ from perfect_recall.core.abstention import AbstentionController
 from perfect_recall.models.memory import MemoryTier
 
 from memory_logger import get_logger
-from local_embeddings import get_embedding_func
+
+# Try Voyage first, fallback to local
+def get_embedding_func_with_fallback():
+    """Get best available embedding function."""
+    # Try Voyage
+    voyage_key = os.getenv("VOYAGE_API_KEY")
+    if voyage_key:
+        try:
+            from voyage_embeddings import get_voyage_embeddings
+            voyage = get_voyage_embeddings()
+            
+            def voyage_embed(text: str) -> list[float]:
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        import nest_asyncio
+                        nest_asyncio.apply()
+                        return loop.run_until_complete(voyage.embed_one(text))
+                    else:
+                        return loop.run_until_complete(voyage.embed_one(text))
+                except RuntimeError:
+                    return asyncio.run(voyage.embed_one(text))
+            
+            # Test it
+            test_emb = voyage_embed("test")
+            if len(test_emb) > 0:
+                print("✅ Using Voyage AI embeddings")
+                return voyage_embed, "voyage-3"
+        except Exception as e:
+            print(f"Voyage failed: {e}, using local embeddings")
+    
+    # Fallback to local
+    from local_embeddings import get_embedding_func
+    print("✅ Using local hash embeddings")
+    return get_embedding_func(), "local_hash"
 
 
 class MemoryOrchestrator:
@@ -64,15 +99,15 @@ class MemoryOrchestrator:
         
         await self.db.initialize()
         
-        # Use local embeddings
-        local_embed = get_embedding_func()
+        # Get best available embedding function
+        embed_func, model_name = get_embedding_func_with_fallback()
         
         # Embedding function with logging
         def embedding_with_logs(text: str) -> list[float]:
             start = time.time()
             
-            # Generate embedding using local embedder
-            result = local_embed(text)
+            # Generate embedding
+            result = embed_func(text)
             
             latency = (time.time() - start) * 1000
             embedding_hash = hashlib.sha256(str(result).encode()).hexdigest()[:16]
@@ -80,7 +115,7 @@ class MemoryOrchestrator:
             self.logger.log_embedding(
                 text=text,
                 embedding_hash=embedding_hash,
-                model="local_hash_v1",
+                model=model_name,
                 latency_ms=latency,
             )
             

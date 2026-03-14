@@ -164,7 +164,17 @@ class SalienceScorer:
         else:
             reference_time = memory.created_at
         
-        age_hours = (datetime.utcnow() - reference_time).total_seconds() / 3600
+        if reference_time is None:
+            return 0.5  # Default score if no time info
+        
+        # Handle timezone-aware vs naive datetime comparison
+        now = datetime.utcnow()
+        if reference_time.tzinfo is not None:
+            # reference_time is timezone-aware, make now timezone-aware too
+            from datetime import timezone
+            now = now.replace(tzinfo=timezone.utc)
+        
+        age_hours = (now - reference_time).total_seconds() / 3600
         return math.exp(-age_hours / 168)
     
     def _importance_score(self, memory: MemoryNode) -> float:

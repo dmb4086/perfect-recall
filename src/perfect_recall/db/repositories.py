@@ -115,11 +115,29 @@ class MemoryRepository:
         
         memories: List[tuple[MemoryNode, float]] = []
         for row in result:
+            # Parse embedding from database (could be string or already a list)
+            embedding = row.embedding
+            if embedding is not None:
+                if isinstance(embedding, str):
+                    # Parse from string representation of array
+                    import json
+                    try:
+                        embedding = json.loads(embedding)
+                    except json.JSONDecodeError:
+                        # Fallback: try to parse as comma-separated values
+                        try:
+                            embedding = [float(x) for x in embedding.strip('[]').split(',') if x]
+                        except ValueError:
+                            embedding = None
+                else:
+                    # Already a list/array
+                    embedding = list(embedding)
+            
             memory = MemoryNode(
                 id=row.id,
                 memory_tier=MemoryTier(row.memory_tier),
                 content=row.content,
-                embedding=list(row.embedding) if row.embedding else None,
+                embedding=embedding,
                 created_at=row.created_at,
                 valid_from=row.valid_from,
                 valid_until=row.valid_until,
