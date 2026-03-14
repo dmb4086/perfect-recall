@@ -230,6 +230,18 @@ class InMemoryMemoryRepository:
             if sim >= threshold:
                 scored.append((self._to_model(orm), sim))
         
+        # If no results from similarity search, fall back to recent memories
+        if not scored:
+            from sqlalchemy import desc
+            recent_query = select(MemoryNodeORM).order_by(desc(MemoryNodeORM.created_at)).limit(limit)
+            if memory_tiers:
+                tier_values = [t.value if hasattr(t, 'value') else t for t in memory_tiers]
+                recent_query = recent_query.where(MemoryNodeORM.memory_tier.in_(tier_values))
+            
+            result = await self.session.execute(recent_query)
+            recent_memories = result.scalars().all()
+            scored = [(self._to_model(orm), 0.5) for orm in recent_memories]
+        
         # Sort by similarity and limit
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[:limit]

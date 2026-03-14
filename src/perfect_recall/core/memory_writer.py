@@ -134,7 +134,8 @@ class MemoryWriter:
             MemoryNode if stored, None if rejected by write gate
         """
         # Check write gate
-        decision = self._should_write(content, episode_type.value, {'session_id': session_id})
+        episode_type_value = episode_type.value if hasattr(episode_type, 'value') else episode_type
+        decision = self._should_write(content, episode_type_value, {'session_id': session_id})
         
         if not decision.write:
             return None
@@ -167,7 +168,7 @@ class MemoryWriter:
             anti_triggers=extracted_anti_triggers,
             metadata={
                 **(metadata or {}),
-                'episode_type': episode_type.value,
+                'episode_type': episode_type_value,
                 'write_decision_factors': decision.factors,
             }
         )
