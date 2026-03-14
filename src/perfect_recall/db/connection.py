@@ -83,11 +83,13 @@ class DatabaseManager:
     
     async def health_check(self) -> bool:
         """Check database connectivity."""
+        from sqlalchemy import text
         try:
             async with self.session() as session:
-                result = await session.execute("SELECT 1")
+                result = await session.execute(text("SELECT 1"))
                 return result.scalar() == 1
-        except Exception:
+        except Exception as e:
+            print(f"Health check error: {e}")
             return False
 
 

@@ -426,6 +426,14 @@ async def create_in_memory_perfect_recall() -> Any:
     db_manager = InMemoryDatabaseManager()
     await db_manager.initialize()
     
+    # Verify tables were created
+    async with db_manager.session() as session:
+        result = await session.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
+        tables = [row[0] for row in result.fetchall()]
+        if 'sessions' not in tables:
+            # Force create tables if not present
+            await db_manager._create_tables()
+    
     # Create components with mock embedding
     writer = MemoryWriter(
         db_manager=db_manager,
