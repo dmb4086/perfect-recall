@@ -174,7 +174,11 @@ class MemoryWriter:
         
         # Store in database
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            # Use db_manager's repository factory if available (for in-memory DB)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             await repo.create(memory)
         
         # Track this write
@@ -237,7 +241,10 @@ class MemoryWriter:
         )
         
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             await repo.create(memory)
         
         return memory
@@ -313,7 +320,10 @@ class MemoryWriter:
         )
         
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             await repo.create(memory)
         
         return memory
@@ -368,7 +378,10 @@ class MemoryWriter:
         )
         
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             await repo.create(memory)
         
         return memory

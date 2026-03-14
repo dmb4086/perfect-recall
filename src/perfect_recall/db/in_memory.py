@@ -18,7 +18,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.pool import NullPool
 from sqlalchemy import select, desc, func, text
 
-from .sqlite_models import Base, SessionORM, EpisodeORM, MemoryNodeORM, WorkingMemoryORM, MemoryAccessLogORM
+# Import SQLite-compatible models
+from .sqlite_models import Base
+from .sqlite_models import SessionORM, EpisodeORM, MemoryNodeORM, WorkingMemoryORM, MemoryAccessLogORM
+
+# Re-export for repositories to use
+__all__ = [
+    'InMemoryDatabaseManager', 'InMemoryMemoryRepository', 'InMemorySessionRepository',
+    'mock_embedding', 'cosine_similarity', 'create_in_memory_perfect_recall',
+    # Re-export ORM classes so repositories can use them
+    'SessionORM', 'EpisodeORM', 'MemoryNodeORM', 'WorkingMemoryORM', 'MemoryAccessLogORM', 'Base'
+]
 
 
 # ============================================================================
@@ -61,7 +71,8 @@ class InMemoryDatabaseManager:
     """
     
     def __init__(self):
-        self.async_url = "sqlite+aiosqlite:///:memory:"
+        # Use shared cache for in-memory database to persist across connections
+        self.async_url = "sqlite+aiosqlite:///file::memory:?cache=shared"
         self.engine = None
         self.async_session = None
     
@@ -115,6 +126,14 @@ class InMemoryDatabaseManager:
                 return result.scalar() == 1
         except Exception:
             return False
+    
+    def get_memory_repository(self, session: AsyncSession):
+        """Get a memory repository for this database."""
+        return InMemoryMemoryRepository(session)
+    
+    def get_session_repository(self, session: AsyncSession):
+        """Get a session repository for this database."""
+        return InMemorySessionRepository(session)
 
 
 # ============================================================================
@@ -224,6 +243,23 @@ class InMemoryMemoryRepository:
             .where(func.lower(MemoryNodeORM.content).like(pattern))
             .limit(limit)
         )
+        return [self._to_model(orm) for orm in result.scalars().all()]
+    
+    async def get_recent_memories(
+        self,
+        limit: int = 10,
+        memory_tiers: Optional[List] = None,
+    ) -> List[Any]:
+        """Get recent memories ordered by creation time."""
+        from sqlalchemy import desc
+        
+        query = select(MemoryNodeORM).order_by(desc(MemoryNodeORM.created_at)).limit(limit)
+        
+        if memory_tiers:
+            tier_values = [t.value if hasattr(t, 'value') else t for t in memory_tiers]
+            query = query.where(MemoryNodeORM.memory_tier.in_(tier_values))
+        
+        result = await self.session.execute(query)
         return [self._to_model(orm) for orm in result.scalars().all()]
     
     async def log_access(

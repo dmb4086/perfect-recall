@@ -346,15 +346,20 @@ class RetrievalPipeline:
         
         # First, get working memory
         if include_working_memory:
-            from ..db.repositories import SessionRepository
-            
             async with self.db_manager.session() as db_session:
-                repo = SessionRepository(db_session)
+                if hasattr(self.db_manager, 'get_session_repository'):
+                    repo = self.db_manager.get_session_repository(db_session)
+                else:
+                    from ..db.repositories import SessionRepository
+                    repo = SessionRepository(db_session)
                 slots = await repo.get_working_memory(session_id)
             
             # Load memory nodes for slots
             async with self.db_manager.session() as db_session:
-                memory_repo = MemoryRepository(db_session)
+                if hasattr(self.db_manager, 'get_memory_repository'):
+                    memory_repo = self.db_manager.get_memory_repository(db_session)
+                else:
+                    memory_repo = MemoryRepository(db_session)
                 
                 for slot in slots:
                     if slot.is_expired():
@@ -398,7 +403,10 @@ class RetrievalPipeline:
             return await self._recent_memories(k, memory_tiers)
         
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             return await repo.search_similar(
                 embedding=query_embedding,
                 limit=k,
@@ -412,21 +420,28 @@ class RetrievalPipeline:
         memory_tiers: Optional[List[MemoryTier]] = None,
     ) -> List[tuple[MemoryNode, float]]:
         """Fallback: Get recent memories when no embedding available."""
-        from sqlalchemy import select, desc
-        from ..db.sqlalchemy_models import MemoryNodeORM
-        
         async with self.db_manager.session() as db_session:
-            query = select(MemoryNodeORM).order_by(desc(MemoryNodeORM.created_at)).limit(k)
-            
-            if memory_tiers:
-                tier_values = [t.value for t in memory_tiers]
-                query = query.where(MemoryNodeORM.memory_tier.in_(tier_values))
-            
-            result = await db_session.execute(query)
-            orms = result.scalars().all()
-            
-            # Return with neutral similarity
-            return [(MemoryNode.model_validate(orm), 0.5) for orm in orms]
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                # Use in-memory repository
+                repo = self.db_manager.get_memory_repository(db_session)
+                memories = await repo.get_recent_memories(k, memory_tiers)
+                return [(m, 0.5) for m in memories]
+            else:
+                # Use PostgreSQL repository with raw ORM
+                from sqlalchemy import select, desc
+                from ..db.sqlalchemy_models import MemoryNodeORM
+                
+                query = select(MemoryNodeORM).order_by(desc(MemoryNodeORM.created_at)).limit(k)
+                
+                if memory_tiers:
+                    tier_values = [t.value for t in memory_tiers]
+                    query = query.where(MemoryNodeORM.memory_tier.in_(tier_values))
+                
+                result = await db_session.execute(query)
+                orms = result.scalars().all()
+                
+                # Return with neutral similarity
+                return [(MemoryNode.model_validate(orm), 0.5) for orm in orms]
     
     def _apply_filters(
         self,
@@ -526,7 +541,10 @@ class RetrievalPipeline:
                 pass
         
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             
             for retrieved in results:
                 await repo.log_access(
