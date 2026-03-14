@@ -451,6 +451,30 @@ class InMemorySessionRepository:
             )
             for orm in result.scalars().all()
         ]
+    
+    async def update(self, session_obj) -> Any:
+        """Update a session."""
+        from ..models.session import Session
+        
+        result = await self.session.execute(
+            select(SessionORM).where(SessionORM.id == str(session_obj.id))
+        )
+        orm = result.scalar_one_or_none()
+        if not orm:
+            return None
+        
+        # Update fields
+        orm.user_id = session_obj.user_id
+        orm.agent_id = session_obj.agent_id
+        orm.started_at = session_obj.started_at
+        orm.ended_at = session_obj.ended_at
+        orm.context_snapshot = session_obj.context_snapshot
+        orm.message_count = session_obj.message_count
+        orm.token_usage = session_obj.token_usage
+        orm.extra_metadata = session_obj.metadata
+        
+        await self.session.flush()
+        return session_obj
 
 
 # ============================================================================

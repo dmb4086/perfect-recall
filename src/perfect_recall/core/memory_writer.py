@@ -67,6 +67,15 @@ class MemoryWriter:
             'important': 1.0,
             'remember': 1.0,
             'don\'t forget': 1.0,
+            # Technical/error patterns
+            'error': 0.8,
+            'exception': 0.8,
+            'fix': 0.8,
+            'debug': 0.8,
+            'timeout': 0.8,
+            'failed': 0.8,
+            'connection': 0.7,
+            'database': 0.7,
         }
         
         # Explicit markers
@@ -384,6 +393,24 @@ class MemoryWriter:
             else:
                 repo = MemoryRepository(db_session)
             await repo.create(memory)
+            
+            # Also create working memory slot linking session to memory
+            from ..models.session import WorkingMemorySlot
+            
+            slot = WorkingMemorySlot(
+                session_id=session_id,
+                memory_id=memory.id,
+                priority=priority,
+                slot_type=slot_type,
+                expires_at=expires_at,
+            )
+            
+            if hasattr(self.db_manager, 'get_session_repository'):
+                session_repo = self.db_manager.get_session_repository(db_session)
+            else:
+                from ..db.repositories import SessionRepository
+                session_repo = SessionRepository(db_session)
+            await session_repo.add_working_memory_slot(slot)
         
         return memory
     
