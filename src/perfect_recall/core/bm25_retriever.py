@@ -1,13 +1,25 @@
 import re
+
 import nltk
 from nltk.stem import PorterStemmer
 from rank_bm25 import BM25Okapi
 
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-    nltk.download('punkt_tab')
+
+def _ensure_nltk_tokenizers() -> None:
+    """Ensure tokenizer datasets required by word_tokenize are present."""
+    required_packages = [
+        ("tokenizers/punkt", "punkt"),
+        ("tokenizers/punkt_tab", "punkt_tab"),
+    ]
+
+    for resource_path, package_name in required_packages:
+        try:
+            nltk.data.find(resource_path)
+        except LookupError:
+            nltk.download(package_name)
+
+
+_ensure_nltk_tokenizers()
 
 class BM25Retriever:
     def __init__(self, memory_md_path):
