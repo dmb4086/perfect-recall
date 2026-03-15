@@ -28,7 +28,7 @@ CREATE TABLE sessions (
     token_usage INTEGER DEFAULT 0,
     
     -- Metadata
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -36,7 +36,7 @@ CREATE TABLE sessions (
 CREATE INDEX idx_sessions_user ON sessions(user_id);
 CREATE INDEX idx_sessions_agent ON sessions(agent_id);
 CREATE INDEX idx_sessions_time ON sessions(started_at, ended_at);
-CREATE INDEX idx_sessions_metadata ON sessions USING GIN (metadata);
+CREATE INDEX idx_sessions_metadata ON sessions USING GIN (extra_metadata);
 
 -- ============================================================================
 -- 2. EPISODES - Event Sequences (Episodic Memory)
@@ -69,7 +69,7 @@ CREATE TABLE episodes (
     memory_count INTEGER DEFAULT 0,
     
     -- Flexible metadata
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -123,7 +123,7 @@ CREATE TABLE memory_nodes (
     anti_triggers TEXT[] DEFAULT '{}',    -- When NOT to use this memory (negative context indicators)
     
     -- Flexible metadata
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     -- Full-text search vector
     search_vector TSVECTOR
@@ -135,7 +135,7 @@ CREATE INDEX idx_memory_created ON memory_nodes(created_at);
 CREATE INDEX idx_memory_valid ON memory_nodes(valid_from, valid_until);
 CREATE INDEX idx_memory_importance ON memory_nodes(importance_score DESC);
 CREATE INDEX idx_memory_last_accessed ON memory_nodes(last_accessed DESC);
-CREATE INDEX idx_memory_metadata ON memory_nodes USING GIN (metadata);
+CREATE INDEX idx_memory_metadata ON memory_nodes USING GIN (extra_metadata);
 CREATE INDEX idx_memory_search ON memory_nodes USING GIN (search_vector);
 CREATE INDEX idx_memory_source_episode ON memory_nodes(source_episode_id);
 
@@ -184,7 +184,7 @@ CREATE TABLE working_memory (
     -- Position in working memory stack
     position INTEGER NOT NULL DEFAULT 0,
     
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     UNIQUE (session_id, memory_id)
 );
@@ -219,7 +219,7 @@ CREATE TABLE memory_relationships (
     strength FLOAT NOT NULL DEFAULT 1.0 CHECK (strength BETWEEN 0 AND 1),
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     UNIQUE (source_memory_id, target_memory_id, relationship_type)
 );
@@ -302,7 +302,7 @@ CREATE TABLE procedural_patterns (
     -- Context where pattern applies
     applicable_contexts TEXT[] DEFAULT '{}',
     
-    metadata JSONB NOT NULL DEFAULT '{}',
+    extra_metadata JSONB NOT NULL DEFAULT '{}',
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

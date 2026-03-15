@@ -1,6 +1,6 @@
 """Session management for Perfect Recall."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
@@ -52,7 +52,10 @@ class SessionManager:
         
         # Store in database
         async with self.db_manager.session() as db_session:
-            repo = SessionRepository(db_session)
+            if hasattr(self.db_manager, 'get_session_repository'):
+                repo = self.db_manager.get_session_repository(db_session)
+            else:
+                repo = SessionRepository(db_session)
             await repo.create(session)
         
         # If resuming, hydrate working memory from previous session
@@ -89,14 +92,17 @@ class SessionManager:
             snapshot = {
                 'working_memory_ids': [str(m.id) for m in working_memories],
                 'working_memory_count': len(working_memories),
-                'ended_at': datetime.utcnow().isoformat(),
+                'ended_at': datetime.now(timezone.utc).isoformat(),
             }
             
             session.context_snapshot = snapshot
         
         if session:
             async with self.db_manager.session() as db_session:
-                repo = SessionRepository(db_session)
+                if hasattr(self.db_manager, 'get_session_repository'):
+                    repo = self.db_manager.get_session_repository(db_session)
+                else:
+                    repo = SessionRepository(db_session)
                 await repo.update(session)
         
         return session
@@ -114,7 +120,10 @@ class SessionManager:
         
         # Fetch from database
         async with self.db_manager.session() as db_session:
-            repo = SessionRepository(db_session)
+            if hasattr(self.db_manager, 'get_session_repository'):
+                repo = self.db_manager.get_session_repository(db_session)
+            else:
+                repo = SessionRepository(db_session)
             return await repo.get_by_id(session_id)
     
     async def get_user_sessions(
@@ -125,7 +134,10 @@ class SessionManager:
     ) -> List[Session]:
         """Get sessions for a user."""
         async with self.db_manager.session() as db_session:
-            repo = SessionRepository(db_session)
+            if hasattr(self.db_manager, 'get_session_repository'):
+                repo = self.db_manager.get_session_repository(db_session)
+            else:
+                repo = SessionRepository(db_session)
             return await repo.get_user_sessions(user_id, limit, active_only)
     
     async def add_to_working_memory(
@@ -160,7 +172,10 @@ class SessionManager:
         )
         
         async with self.db_manager.session() as db_session:
-            repo = SessionRepository(db_session)
+            if hasattr(self.db_manager, 'get_session_repository'):
+                repo = self.db_manager.get_session_repository(db_session)
+            else:
+                repo = SessionRepository(db_session)
             await repo.add_working_memory_slot(slot)
         
         # Update cache
@@ -185,8 +200,14 @@ class SessionManager:
             List of memory nodes in working memory
         """
         async with self.db_manager.session() as db_session:
-            session_repo = SessionRepository(db_session)
-            memory_repo = MemoryRepository(db_session)
+            if hasattr(self.db_manager, 'get_session_repository'):
+                session_repo = self.db_manager.get_session_repository(db_session)
+            else:
+                session_repo = SessionRepository(db_session)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                memory_repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                memory_repo = MemoryRepository(db_session)
             
             # Get working memory slots
             slots = await session_repo.get_working_memory(session_id)
@@ -240,7 +261,10 @@ class SessionManager:
                 session.token_usage = token_usage
             
             async with self.db_manager.session() as db_session:
-                repo = SessionRepository(db_session)
+                if hasattr(self.db_manager, 'get_session_repository'):
+                    repo = self.db_manager.get_session_repository(db_session)
+                else:
+                    repo = SessionRepository(db_session)
                 await repo.update(session)
     
     async def _hydrate_working_memory(
@@ -256,7 +280,10 @@ class SessionManager:
         """
         # Get previous session
         async with self.db_manager.session() as db_session:
-            repo = SessionRepository(db_session)
+            if hasattr(self.db_manager, 'get_session_repository'):
+                repo = self.db_manager.get_session_repository(db_session)
+            else:
+                repo = SessionRepository(db_session)
             prev_session = await repo.get_by_id(previous_session_id)
         
         if not prev_session or not prev_session.context_snapshot:

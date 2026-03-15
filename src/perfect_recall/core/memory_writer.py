@@ -7,7 +7,7 @@ Implements the Write Gate pattern for intelligent memory filtering.
 
 import re
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Callable
 from uuid import UUID
 
@@ -67,6 +67,15 @@ class MemoryWriter:
             'important': 1.0,
             'remember': 1.0,
             'don\'t forget': 1.0,
+            # Technical/error patterns
+            'error': 0.8,
+            'exception': 0.8,
+            'fix': 0.8,
+            'debug': 0.8,
+            'timeout': 0.8,
+            'failed': 0.8,
+            'connection': 0.7,
+            'database': 0.7,
         }
         
         # Explicit markers
@@ -134,7 +143,8 @@ class MemoryWriter:
             MemoryNode if stored, None if rejected by write gate
         """
         # Check write gate
-        decision = self._should_write(content, episode_type.value, {'session_id': session_id})
+        episode_type_value = episode_type.value if hasattr(episode_type, 'value') else episode_type
+        decision = self._should_write(content, episode_type_value, {'session_id': session_id})
         
         if not decision.write:
             return None
@@ -167,18 +177,22 @@ class MemoryWriter:
             anti_triggers=extracted_anti_triggers,
             metadata={
                 **(metadata or {}),
-                'episode_type': episode_type.value,
+                'episode_type': episode_type_value,
                 'write_decision_factors': decision.factors,
             }
         )
         
         # Store in database
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            # Use db_manager's repository factory if available (for in-memory DB)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             await repo.create(memory)
         
         # Track this write
-        self._recent_writes.append(datetime.utcnow())
+        self._recent_writes.append(datetime.now(timezone.utc))
         
         # Extract facts asynchronously (background task)
         # For now, synchronous execution
@@ -237,7 +251,10 @@ class MemoryWriter:
         )
         
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             await repo.create(memory)
         
         return memory
@@ -313,7 +330,10 @@ class MemoryWriter:
         )
         
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             await repo.create(memory)
         
         return memory
@@ -353,7 +373,7 @@ class MemoryWriter:
         
         expires_at = None
         if expires_in_minutes:
-            expires_at = datetime.utcnow() + timedelta(minutes=expires_in_minutes)
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
         
         memory = MemoryNode(
             memory_tier=MemoryTier.WORKING,
@@ -368,8 +388,29 @@ class MemoryWriter:
         )
         
         async with self.db_manager.session() as db_session:
-            repo = MemoryRepository(db_session)
+            if hasattr(self.db_manager, 'get_memory_repository'):
+                repo = self.db_manager.get_memory_repository(db_session)
+            else:
+                repo = MemoryRepository(db_session)
             await repo.create(memory)
+            
+            # Also create working memory slot linking session to memory
+            from ..models.session import WorkingMemorySlot
+            
+            slot = WorkingMemorySlot(
+                session_id=session_id,
+                memory_id=memory.id,
+                priority=priority,
+                slot_type=slot_type,
+                expires_at=expires_at,
+            )
+            
+            if hasattr(self.db_manager, 'get_session_repository'):
+                session_repo = self.db_manager.get_session_repository(db_session)
+            else:
+                from ..db.repositories import SessionRepository
+                session_repo = SessionRepository(db_session)
+            await session_repo.add_working_memory_slot(slot)
         
         return memory
     
@@ -399,7 +440,7 @@ class MemoryWriter:
         # Dynamic threshold based on recent write rate
         recent_rate = len([
             w for w in self._recent_writes
-            if w > datetime.utcnow() - timedelta(minutes=5)
+            if w > datetime.now(timezone.utc) - timedelta(minutes=5)
         ])
         dynamic_threshold = self.write_threshold + (recent_rate / 100) * 0.2
         

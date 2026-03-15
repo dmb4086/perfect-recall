@@ -39,7 +39,13 @@ class MemoryRepository:
             version=memory.version,
             supersedes_id=memory.supersedes_id,
             superseded_by_id=memory.superseded_by_id,
-            metadata=memory.metadata,
+            # FIXED: Use extra_metadata (ORM column name), not metadata
+            extra_metadata=memory.metadata,
+            # FIXED: Map superpowers fields
+            triggers=memory.triggers,
+            symptoms=memory.symptoms,
+            aliases=memory.aliases,
+            anti_triggers=memory.anti_triggers,
         )
         self.session.add(orm)
         await self.session.flush()
@@ -66,7 +72,12 @@ class MemoryRepository:
             orm.access_count = memory.access_count
             orm.last_accessed = memory.last_accessed
             orm.valid_until = memory.valid_until
-            orm.metadata = memory.metadata
+            orm.extra_metadata = memory.metadata  # FIXED: Use extra_metadata
+            # FIXED: Update superpowers fields
+            orm.triggers = memory.triggers
+            orm.symptoms = memory.symptoms
+            orm.aliases = memory.aliases
+            orm.anti_triggers = memory.anti_triggers
             await self.session.flush()
         return memory
     
@@ -82,31 +93,84 @@ class MemoryRepository:
         
         Returns list of (memory, similarity_score) tuples.
         """
-        # Convert embedding to string format for SQL
-        embedding_str = f"[{','.join(str(x) for x in embedding)}]"
+        # Use raw SQL with proper vector casting for pgvector
+        embedding_str = f"'[{','.join(str(x) for x in embedding)}]'::vector"
         
-        query = select(
-            MemoryNodeORM,
-            (1 - MemoryNodeORM.embedding.cosine_distance(embedding_str)).label("similarity")
-        ).where(
-            and_(
-                MemoryNodeORM.embedding.isnot(None),
-                (1 - MemoryNodeORM.embedding.cosine_distance(embedding_str)) >= threshold,
-                or_(
-                    MemoryNodeORM.valid_until.is_(None),
-                    MemoryNodeORM.valid_until > text("NOW()")
-                )
-            )
-        ).order_by(
-            MemoryNodeORM.embedding.cosine_distance(embedding_str)
-        ).limit(limit)
+        sql = f"""
+            SELECT 
+                id, memory_tier, content, embedding, created_at, valid_from, 
+                valid_until, importance_score, access_count, last_accessed,
+                emotional_valence, confidence, source_type, source_episode_id,
+                version, supersedes_id, superseded_by_id, triggers, symptoms,
+                aliases, anti_triggers, extra_metadata,
+                1 - (embedding <=> {embedding_str}) as similarity
+            FROM memory_nodes
+            WHERE embedding IS NOT NULL
+              AND 1 - (embedding <=> {embedding_str}) >= :threshold
+              AND (valid_until IS NULL OR valid_until > NOW())
+        """
+        
+        params: Dict[str, Any] = {"threshold": threshold}
         
         if memory_tiers:
             tier_values = [t.value for t in memory_tiers]
-            query = query.where(MemoryNodeORM.memory_tier.in_(tier_values))
+            placeholders = ", ".join([f":tier_{i}" for i in range(len(tier_values))])
+            sql += f" AND memory_tier IN ({placeholders})"
+            for i, tier in enumerate(tier_values):
+                params[f"tier_{i}"] = tier
         
-        result = await self.session.execute(query)
-        return [(self._to_model(row[0]), float(row[1])) for row in result.all()]
+        sql += f" ORDER BY embedding <=> {embedding_str} LIMIT :limit"
+        params["limit"] = limit
+        
+        result = await self.session.execute(text(sql), params)
+        
+        memories: List[tuple[MemoryNode, float]] = []
+        for row in result:
+            # Parse embedding from database (could be string or already a list)
+            embedding = row.embedding
+            if embedding is not None:
+                if isinstance(embedding, str):
+                    # Parse from string representation of array
+                    import json
+                    try:
+                        embedding = json.loads(embedding)
+                    except json.JSONDecodeError:
+                        # Fallback: try to parse as comma-separated values
+                        try:
+                            embedding = [float(x) for x in embedding.strip('[]').split(',') if x]
+                        except ValueError:
+                            embedding = None
+                else:
+                    # Already a list/array
+                    embedding = list(embedding)
+            
+            memory = MemoryNode(
+                id=row.id,
+                memory_tier=MemoryTier(row.memory_tier),
+                content=row.content,
+                embedding=embedding,
+                created_at=row.created_at,
+                valid_from=row.valid_from,
+                valid_until=row.valid_until,
+                importance_score=row.importance_score,
+                access_count=row.access_count,
+                last_accessed=row.last_accessed,
+                emotional_valence=row.emotional_valence,
+                confidence=row.confidence,
+                source_type=row.source_type,
+                source_episode_id=row.source_episode_id,
+                version=row.version,
+                supersedes_id=row.supersedes_id,
+                superseded_by_id=row.superseded_by_id,
+                triggers=list(row.triggers) if row.triggers else [],
+                symptoms=list(row.symptoms) if row.symptoms else [],
+                aliases=list(row.aliases) if row.aliases else [],
+                anti_triggers=list(row.anti_triggers) if row.anti_triggers else [],
+                metadata=row.extra_metadata or {},
+            )
+            memories.append((memory, float(row.similarity)))
+        
+        return memories
     
     async def log_access(
         self,
@@ -155,7 +219,13 @@ class MemoryRepository:
             version=orm.version,
             supersedes_id=orm.supersedes_id,
             superseded_by_id=orm.superseded_by_id,
-            metadata=orm.metadata or {},
+            # FIXED: Use extra_metadata (ORM column), map to metadata (Pydantic field)
+            metadata=orm.extra_metadata or {},
+            # FIXED: Map superpowers fields
+            triggers=list(orm.triggers) if orm.triggers else [],
+            symptoms=list(orm.symptoms) if orm.symptoms else [],
+            aliases=list(orm.aliases) if orm.aliases else [],
+            anti_triggers=list(orm.anti_triggers) if orm.anti_triggers else [],
         )
 
 
@@ -175,7 +245,7 @@ class SessionRepository:
             context_snapshot=session_obj.context_snapshot,
             message_count=session_obj.message_count,
             token_usage=session_obj.token_usage,
-            metadata=session_obj.metadata,
+            extra_metadata=session_obj.metadata,  # FIXED: Use extra_metadata
         )
         self.session.add(orm)
         await self.session.flush()
@@ -257,7 +327,7 @@ class SessionRepository:
             context_snapshot=orm.context_snapshot or {},
             message_count=orm.message_count,
             token_usage=orm.token_usage,
-            metadata=orm.metadata or {},
+            metadata=orm.extra_metadata or {},  # FIXED: Use extra_metadata
             created_at=orm.created_at,
         )
     

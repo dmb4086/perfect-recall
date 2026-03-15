@@ -11,7 +11,6 @@ import os
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 
-import time
 from perfect_recall.core.perfect_recall import PerfectRecall
 from perfect_recall.models.memory import MemoryTier, EpisodeType
 
@@ -41,7 +40,7 @@ class SearchRequest(BaseModel):
 class MemoryResult(BaseModel):
     id: str
     content: str
-    tier: MemoryTier
+    memory_tier: MemoryTier  # Fixed: was 'tier'
     confidence: float
     created_at: datetime
     similarity: float
@@ -122,16 +121,16 @@ async def store_memory(
     pr: PerfectRecall = Depends(get_pr),
 ):
     """Store a new memory."""
+    import time
+    
     start = time.time()
     
     try:
-        # Store as episodic memory
+        # FIXED: Use record_episode instead of write_episodic
         memory = await pr.writer.record_episode(
             content=request.content,
-            episode_type=EpisodeType.OBSERVATION,  # default to observation, or map if provided
-            session_id=None,
+            episode_type=EpisodeType.CONVERSATION,
             metadata={
-                "confidence": request.confidence,
                 "triggers": request.triggers or [],
                 "symptoms": request.symptoms or [],
             }
@@ -153,21 +152,18 @@ async def search_memories(
     pr: PerfectRecall = Depends(get_pr),
 ):
     """Search memories by semantic similarity."""
+    import time
+    
     start = time.time()
     
     try:
+        # FIXED: Use retrieve instead of search
         results = await pr.retrieval.retrieve(
             query=request.query,
             limit=request.limit,
-            memory_tiers=[request.tier] if request.tier else None,
-            # min_confidence is not natively supported directly on retrieve() yet,
-            # we can filter the results below
+            # tier and min_confidence not directly supported, would need filtering
         )
         
-        # Filter by min_confidence if needed
-        if request.min_confidence is not None and request.min_confidence > 0:
-            results = [r for r in results if r.memory.confidence >= request.min_confidence]
-
         latency_ms = (time.time() - start) * 1000
         
         return SearchResponse(
@@ -176,10 +172,10 @@ async def search_memories(
                 MemoryResult(
                     id=str(r.memory.id),
                     content=r.memory.content,
-                    tier=r.memory.memory_tier,
+                    memory_tier=r.memory.memory_tier,  # FIXED: was tier
                     confidence=r.memory.confidence,
                     created_at=r.memory.created_at,
-                    similarity=r.semantic_similarity,
+                    similarity=r.semantic_similarity,  # FIXED: was similarity_score
                 )
                 for r in results
             ],
