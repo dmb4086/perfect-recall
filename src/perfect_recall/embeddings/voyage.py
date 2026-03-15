@@ -7,6 +7,8 @@ Best-of-best embeddings with fallback handling.
 import os
 import asyncio
 import time
+import json
+import hashlib
 from typing import List, Optional
 from dataclasses import dataclass
 
@@ -125,8 +127,29 @@ class VoyageEmbedder:
     
     async def _get_cached(self, texts: List[str]) -> List[Optional[EmbeddingResult]]:
         """Get cached embeddings from Redis."""
-        # TODO: Implement Redis caching
-        return [None] * len(texts)
+        if not self.redis:
+            return [None] * len(texts)
+
+        cached_results = []
+        for text in texts:
+            key = f"emb:{self.model}:{hashlib.md5(text.encode()).hexdigest()}"
+            try:
+                cached = await self.redis.get(key)
+                if cached:
+                    data = json.loads(cached)
+                    cached_results.append(EmbeddingResult(
+                        embedding=data["embedding"],
+                        model=data["model"],
+                        latency_ms=0.0,
+                        cached=True
+                    ))
+                else:
+                    cached_results.append(None)
+            except Exception:
+                # Fallback to no cache if redis fails
+                cached_results.append(None)
+
+        return cached_results
     
     async def _cache_results(
         self, 
@@ -134,8 +157,20 @@ class VoyageEmbedder:
         results: List[EmbeddingResult]
     ):
         """Cache embeddings in Redis."""
-        # TODO: Implement Redis caching
-        pass
+        if not self.redis:
+            return
+
+        for text, result in zip(texts, results):
+            key = f"emb:{self.model}:{hashlib.md5(text.encode()).hexdigest()}"
+            data = {
+                "embedding": result.embedding,
+                "model": result.model,
+            }
+            try:
+                # Cache for 30 days
+                await self.redis.setex(key, 30 * 24 * 60 * 60, json.dumps(data))
+            except Exception:
+                pass
     
     async def close(self):
         await self.client.aclose()
