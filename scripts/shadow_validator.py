@@ -28,13 +28,14 @@ class ShadowValidator:
         self.bm25 = None
         self.queries = []
         self.pr_mock_db = []
+        self.using_mock_pr = False
 
     def _mock_embedding(self, text: str) -> list[float]:
-        """Generate deterministic mock embeddings for testing, simulating semantic search."""
+        """Generate deterministic pseudo-embeddings for fallback-only smoke testing."""
         import hashlib
         import numpy as np
 
-        # Simple semantic mock: words that are semantically similar map to similar hashes.
+        # Hash-seeded vectors are deterministic but not semantically meaningful.
         hash_bytes = hashlib.sha256(text.encode()).digest()
         np.random.seed(int.from_bytes(hash_bytes[:4], 'big'))
         embedding = np.random.randn(1536).astype(np.float32)
@@ -105,9 +106,14 @@ class ShadowValidator:
                 )
         except Exception as e:
             print(f"Failed to connect to DB: {e}. Using mocked PR retriever.")
+            print(
+                "WARNING: Mock PR mode uses deterministic pseudo-embeddings and is "
+                "not semantically comparable to real retrieval quality."
+            )
             self.pr = MagicMock()
             self.pr.recall = AsyncMock(side_effect=self._mock_recall)
             self.pr.close = AsyncMock()
+            self.using_mock_pr = True
 
             print("Ingesting data into Mock Perfect Recall...")
             for pair in SYNTHETIC_PAIRS:
@@ -143,12 +149,19 @@ class ShadowValidator:
         # Report
         print(f"Total Queries: {total}")
         print(f"BM25 Hit@{k}: {bm25_hits}/{total} ({(bm25_hits/total)*100:.1f}%)")
+
+        if self.using_mock_pr:
+            print(
+                "PR Hit metrics were computed in MOCK mode and should not be used "
+                "for quality comparisons."
+            )
         print(f"PR Hit@{k}:   {pr_hits}/{total} ({(pr_hits/total)*100:.1f}%)")
 
         return {
             "total": total,
             "bm25_hits": bm25_hits,
-            "pr_hits": pr_hits
+            "pr_hits": pr_hits,
+            "using_mock_pr": self.using_mock_pr,
         }
 
 if __name__ == "__main__":
