@@ -1,0 +1,222 @@
+[
+  {
+    "query": "what indentation style",
+    "expected_memory": "User prefers 2-space indentation for TypeScript projects.",
+    "category": "preferences"
+  },
+  {
+    "query": "typescript formatting preference",
+    "expected_memory": "User prefers 2-space indentation for TypeScript projects.",
+    "category": "preferences"
+  },
+  {
+    "query": "how to reduce API costs",
+    "expected_memory": "Redis caching implemented for embedding API to reduce costs.",
+    "category": "architecture"
+  },
+  {
+    "query": "redis caching details",
+    "expected_memory": "Redis caching implemented for embedding API to reduce costs.",
+    "category": "architecture"
+  },
+  {
+    "query": "why did we add redis",
+    "expected_memory": "Redis caching implemented for embedding API to reduce costs.",
+    "category": "architecture"
+  },
+  {
+    "query": "when is the meeting",
+    "expected_memory": "Team standup scheduled for 10 AM GMT+8 on weekdays.",
+    "category": "schedule"
+  },
+  {
+    "query": "standup time",
+    "expected_memory": "Team standup scheduled for 10 AM GMT+8 on weekdays.",
+    "category": "schedule"
+  },
+  {
+    "query": "what time does the team meet",
+    "expected_memory": "Team standup scheduled for 10 AM GMT+8 on weekdays.",
+    "category": "schedule"
+  },
+  {
+    "query": "database performance",
+    "expected_memory": "Database performance issues last week were caused by missing index on user_id column.",
+    "category": "incidents"
+  },
+  {
+    "query": "what caused the outage",
+    "expected_memory": "Database performance issues last week were caused by missing index on user_id column.",
+    "category": "incidents"
+  },
+  {
+    "query": "missing index bug",
+    "expected_memory": "Database performance issues last week were caused by missing index on user_id column.",
+    "category": "incidents"
+  },
+  {
+    "query": "frontend stack",
+    "expected_memory": "Frontend uses Next.js with App Router and TailwindCSS for styling.",
+    "category": "architecture"
+  },
+  {
+    "query": "react framework used",
+    "expected_memory": "Frontend uses Next.js with App Router and TailwindCSS for styling.",
+    "category": "architecture"
+  },
+  {
+    "query": "CSS strategy",
+    "expected_memory": "Frontend uses Next.js with App Router and TailwindCSS for styling.",
+    "category": "architecture"
+  },
+  {
+    "query": "import path conventions",
+    "expected_memory": "Always use absolute imports starting with '@/' instead of relative paths in React components.",
+    "category": "conventions"
+  },
+  {
+    "query": "how to import in react",
+    "expected_memory": "Always use absolute imports starting with '@/' instead of relative paths in React components.",
+    "category": "conventions"
+  },
+  {
+    "query": "rate limiting config",
+    "expected_memory": "API rate limits are set to 100 requests per minute per IP address.",
+    "category": "configuration"
+  },
+  {
+    "query": "how many requests allowed",
+    "expected_memory": "API rate limits are set to 100 requests per minute per IP address.",
+    "category": "configuration"
+  },
+  {
+    "query": "how does auth work",
+    "expected_memory": "Authentication is handled by Supabase, specifically using magic links.",
+    "category": "architecture"
+  },
+  {
+    "query": "supabase login",
+    "expected_memory": "Authentication is handled by Supabase, specifically using magic links.",
+    "category": "architecture"
+  },
+  {
+    "query": "when is user at lunch",
+    "expected_memory": "User typically takes lunch around 1 PM EST and is slow to respond then.",
+    "category": "preferences"
+  },
+  {
+    "query": "slow response time",
+    "expected_memory": "User typically takes lunch around 1 PM EST and is slow to respond then.",
+    "category": "preferences"
+  },
+  {
+    "query": "where is it deployed",
+    "expected_memory": "Production environment is hosted on Vercel, staging is on Heroku.",
+    "category": "infrastructure"
+  },
+  {
+    "query": "hosting provider",
+    "expected_memory": "Production environment is hosted on Vercel, staging is on Heroku.",
+    "category": "infrastructure"
+  },
+  {
+    "query": "payment processing",
+    "expected_memory": "Stripe webhooks are processed in the 'api/webhooks/stripe' endpoint.",
+    "category": "architecture"
+  },
+  {
+    "query": "where do webhooks go",
+    "expected_memory": "Stripe webhooks are processed in the 'api/webhooks/stripe' endpoint.",
+    "category": "architecture"
+  },
+  {
+    "query": "how are async tasks run",
+    "expected_memory": "Background jobs are handled using Celery and Redis.",
+    "category": "architecture"
+  },
+  {
+    "query": "celery setup",
+    "expected_memory": "Background jobs are handled using Celery and Redis.",
+    "category": "architecture"
+  },
+  {
+    "query": "how should I format my responses",
+    "expected_memory": "User prefers concise, bulleted responses without conversational filler.",
+    "category": "preferences"
+  },
+  {
+    "query": "communication style",
+    "expected_memory": "User prefers concise, bulleted responses without conversational filler.",
+    "category": "preferences"
+  },
+  {
+    "query": "what db are we using",
+    "expected_memory": "PostgreSQL is used as the primary relational database.",
+    "category": "architecture"
+  },
+  {
+    "query": "relational storage",
+    "expected_memory": "PostgreSQL is used as the primary relational database.",
+    "category": "architecture"
+  },
+  {
+    "query": "naming conventions",
+    "expected_memory": "Use snake_case for Python variables and camelCase for JavaScript variables.",
+    "category": "conventions"
+  },
+  {
+    "query": "how to name variables",
+    "expected_memory": "Use snake_case for Python variables and camelCase for JavaScript variables.",
+    "category": "conventions"
+  },
+  {
+    "query": "user roles and permissions",
+    "expected_memory": "The 'admin' role has full access, while 'editor' can only modify content but not settings.",
+    "category": "authorization"
+  },
+  {
+    "query": "what can an editor do",
+    "expected_memory": "The 'admin' role has full access, while 'editor' can only modify content but not settings.",
+    "category": "authorization"
+  },
+  {
+    "query": "how to deploy",
+    "expected_memory": "Deployments happen automatically when a PR is merged into the 'main' branch.",
+    "category": "infrastructure"
+  },
+  {
+    "query": "CI/CD process",
+    "expected_memory": "Deployments happen automatically when a PR is merged into the 'main' branch.",
+    "category": "infrastructure"
+  },
+  {
+    "query": "log retention policy",
+    "expected_memory": "Log files are rotated daily and kept for 30 days before deletion.",
+    "category": "configuration"
+  },
+  {
+    "query": "how long do we keep logs",
+    "expected_memory": "Log files are rotated daily and kept for 30 days before deletion.",
+    "category": "configuration"
+  },
+  {
+    "query": "technologies to avoid",
+    "expected_memory": "The user hates when the AI suggests using jQuery.",
+    "category": "preferences"
+  },
+  {
+    "query": "jquery opinion",
+    "expected_memory": "The user hates when the AI suggests using jQuery.",
+    "category": "preferences"
+  },
+  {
+    "query": "how do we turn features on and off",
+    "expected_memory": "Feature flags are managed using LaunchDarkly.",
+    "category": "architecture"
+  },
+  {
+    "query": "feature toggle tool",
+    "expected_memory": "Feature flags are managed using LaunchDarkly.",
+    "category": "architecture"
+  }
+]
